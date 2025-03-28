@@ -27,6 +27,7 @@ def create_user(db: Session, user: schemas.UsuarioCreate):
         user=user.user,
         ncompleto=user.ncompleto,
         fnacimiento=user.fnacimiento,
+        email=user.email,
         contrasena=user.contrasena
     )
     
@@ -69,6 +70,7 @@ def update_user(db: Session, user_id: int, user: schemas.UsuarioCreate):
     # Update fields
     db_user.user = user.user
     db_user.ncompleto = user.ncompleto
+    db_user.email = user.email
     db_user.fnacimiento = user.fnacimiento
     
     # Update password directly if provided

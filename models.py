@@ -40,6 +40,7 @@ class Usuario(Base):
     id = Column(Integer, primary_key=True, index=True)
     user = Column(String(50), nullable=False, unique=True)
     ncompleto = Column(String(100), nullable=False)
+    email = Column(String(100), nullable=False)
     fnacimiento = Column(Date, nullable=False)
     contrasena = Column(String(255), nullable=False)
     
