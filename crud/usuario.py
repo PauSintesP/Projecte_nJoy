@@ -105,13 +105,13 @@ def delete_user(db: Session, user_id: int):
             detail=f"Could not delete user: {str(e)}"
         )
 
-def authenticate_user(db: Session, username: str, password: str):
+def authenticate_user(db: Session, email: str, password: str):
     """
     Authenticate a user by comparing plain text passwords.
     """
-    user = get_user_by_username(db, username)
+    user = db.query(models.Usuario).filter(models.Usuario.email == email).first()
     if not user:
         return False
-    if password != user.contrasena:
+    if user.contrasena != password:
         return False
     return user

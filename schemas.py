@@ -64,7 +64,6 @@ class UsuarioCreate(UsuarioBase):
         if age < 18:
             raise ValueError('Debe ser mayor de 18 años')
         return v
-
 class UsuarioResponse(UsuarioBase):
     id: int
 
