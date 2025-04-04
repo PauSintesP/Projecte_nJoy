@@ -83,3 +83,23 @@ def update_user(
             detail="Not authorized to update this user"
         )
     return crud.update_user(db=db, user_id=user_id, user=user)
+@router.get("/", response_model=List[schemas.UsuarioResponse])
+def read_all_users(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve all users with pagination
+    """
+    return crud.get_users(db, skip=skip, limit=limit)
+
+@router.get("/{user_id}", response_model=schemas.UsuarioResponse)
+def read_user_by_id(
+    user_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Retrieve a user by their ID
+    """
+    return crud.get_user_by_id(db, user_id)
