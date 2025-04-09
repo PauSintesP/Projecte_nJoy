@@ -59,6 +59,7 @@ class Evento(Base):
     tipo = Column(String(50), nullable=False)
     categoria_precio = Column(String(50), nullable=False)
     organizador_dni = Column(String(20), ForeignKey("ORGANIZADOR.dni"), nullable=False)
+    genero = Column(Integer, ForeignKey("GENERO.id"), nullable=False)
     
     localidad = relationship("Localidad", back_populates="eventos")
     organizador = relationship("Organizador", back_populates="eventos")

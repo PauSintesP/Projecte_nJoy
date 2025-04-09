@@ -78,6 +78,7 @@ class EventoBase(BaseModel):
     tipo: str = Field(..., min_length=2, max_length=50)
     categoria_precio: str = Field(..., min_length=2, max_length=50)
     organizador_dni: str
+    genero: int
 
 class EventoCreate(EventoBase):
     pass
