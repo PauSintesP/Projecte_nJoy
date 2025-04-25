@@ -39,25 +39,6 @@ class Usuario(Base):
     
     pagos = relationship("Pago", back_populates="usuario")
 
-class Evento(Base):
-    __tablename__ = "EVENTO"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    nombre = Column(String(100), nullable=False)
-    descripcion = Column(String(201), nullable=False)
-    localidad_id = Column(Integer, ForeignKey("LOCALIDAD.id"), nullable=False)
-    recinto = Column(String(100), nullable=False)
-    plazas = Column(Integer, nullable=False)
-    fechayhora = Column(DateTime, nullable=False)
-    tipo = Column(String(50), nullable=False)
-    categoria_precio = Column(String(50), nullable=False)
-    organizador_dni = Column(String(20), ForeignKey("ORGANIZADOR.dni"), nullable=False)
-    genero = Column(Integer, ForeignKey("GENERO.id"), nullable=False)
-    
-    localidad = relationship("Localidad", back_populates="eventos")
-    organizador = relationship("Organizador", back_populates="eventos")
-    tickets = relationship("Ticket", back_populates="evento")
-
 class Ticket(Base):
     __tablename__ = "TICKET"
     id = Column(Integer, primary_key=True, index=True)
