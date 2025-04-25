@@ -7,7 +7,7 @@ from typing import List
 
 def create_evento(db: Session, evento: schemas.EventoCreate):
     """
-    Create a new event
+    Create a new event and associate it with artists
     """
     try:
         # Check if localidad and organizador exist
@@ -30,6 +30,16 @@ def create_evento(db: Session, evento: schemas.EventoCreate):
         db.add(db_evento)
         db.commit()
         db.refresh(db_evento)
+
+        # Associate artists with the event
+        for artista_id in evento.artistas:
+            db_evento_artista = models.EventoArtista(
+                evento_id=db_evento.id,
+                artista_id=artista_id
+            )
+            db.add(db_evento_artista)
+        
+        db.commit()
         return db_evento
     except IntegrityError:
         db.rollback()
@@ -38,9 +48,10 @@ def create_evento(db: Session, evento: schemas.EventoCreate):
             detail="Could not create event. Check related entities."
         )
 
+
 def get_evento(db: Session, evento_id: int):
     """
-    Retrieve an event by its ID
+    Retrieve an event by its ID, including associated artists
     """
     evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
     if not evento:

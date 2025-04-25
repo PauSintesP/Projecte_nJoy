@@ -27,13 +27,6 @@ class Genero(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(50), nullable=False)
 
-class Artista(Base):
-    __tablename__ = "ARTISTA"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    nartistico = Column(String(100), nullable=False)
-    nreal = Column(String(100), nullable=False)
-
 class Usuario(Base):
     __tablename__ = "USUARIO"
     
@@ -85,3 +78,41 @@ class Pago(Base):
     
     usuario = relationship("Usuario", back_populates="pagos")
     ticket = relationship("Ticket", back_populates="pago")
+
+class EventoArtista(Base):
+    __tablename__ = "EVENTO_ARTISTA"
+    
+    evento_id = Column(Integer, ForeignKey("EVENTO.id"), primary_key=True)
+    artista_id = Column(Integer, ForeignKey("ARTISTA.id"), primary_key=True)
+    
+    evento = relationship("Evento", back_populates="artistas")
+    artista = relationship("Artista", back_populates="eventos")
+
+class Evento(Base):
+    __tablename__ = "EVENTO"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    nombre = Column(String(100), nullable=False)
+    descripcion = Column(String(201), nullable=False)
+    localidad_id = Column(Integer, ForeignKey("LOCALIDAD.id"), nullable=False)
+    recinto = Column(String(100), nullable=False)
+    plazas = Column(Integer, nullable=False)
+    fechayhora = Column(DateTime, nullable=False)
+    tipo = Column(String(50), nullable=False)
+    categoria_precio = Column(String(50), nullable=False)
+    organizador_dni = Column(String(20), ForeignKey("ORGANIZADOR.dni"), nullable=False)
+    
+    localidad = relationship("Localidad", back_populates="eventos")
+    organizador = relationship("Organizador", back_populates="eventos")
+    tickets = relationship("Ticket", back_populates="evento")
+    artistas = relationship("EventoArtista", back_populates="evento")
+
+
+class Artista(Base):
+    __tablename__ = "ARTISTA"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    nartistico = Column(String(100), nullable=False)
+    nreal = Column(String(100), nullable=False)
+    
+    eventos = relationship("EventoArtista", back_populates="artista")
