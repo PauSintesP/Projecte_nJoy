@@ -46,6 +46,7 @@ class ArtistaCreate(ArtistaBase):
 
 class ArtistaResponse(ArtistaBase):
     id: int
+    eventos: List["EventoResponse"]
 
 # Usuario Schemas
 class UsuarioBase(BaseModel):
@@ -80,10 +81,11 @@ class EventoBase(BaseModel):
     organizador_dni: str
 
 class EventoCreate(EventoBase):
-    pass
+    artistas: List[int]
 
 class EventoResponse(EventoBase):
     id: int
+    artistas: List["ArtistaResponse"] 
 
 # Ticket Schemas
 class TicketBase(BaseModel):
@@ -110,3 +112,6 @@ class PagoCreate(PagoBase):
 
 class PagoResponse(PagoBase):
     id: int
+
+EventoResponse.update_forward_refs()
+ArtistaResponse.update_forward_refs()
