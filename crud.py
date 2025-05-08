@@ -1,24 +1,31 @@
 from sqlalchemy.orm import Session
-from sqlalchemy.exc import SQLAlchemyError
-from fastapi import HTTPException, status
+import models, schemas
 
-def update_item(db: Session, model, item_id: int, update_data: dict):
-    db_item = db.query(model).filter(model.id == item_id).first()
-    if not db_item:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"{model.__name__} no encontrado"
-        )
-    
-    # Actualiza automáticamente los atributos que existan en la instancia
-    for key, value in update_data.items():
-        if hasattr(db_item, key):
-            setattr(db_item, key, value)
-    
-    try:
-        db.commit()
-        db.refresh(db_item)
-        return db_item
-    except SQLAlchemyError as e:
-        db.rollback()
-        raise HTTPException(status_code=400, detail=str(e))
+def login_user(db: Session, email: str, contrasena: str):
+    return db.query(models.Usuario).filter_by(email=email, contrasena=contrasena).first()
+
+def create_item(db: Session, model, schema):
+    db_item = model(**schema.dict())
+    db.add(db_item)
+    db.commit()
+    db.refresh(db_item)
+    return db_item
+
+def get_items(db: Session, model):
+    return db.query(model).all()
+
+def get_item(db: Session, model, item_id: int):
+    return db.query(model).filter_by(id=item_id).first()
+
+def update_item(db: Session, model, item_id: int, schema):
+    db_item = db.query(model).filter_by(id=item_id).first()
+    for key, value in schema.dict(exclude_unset=True).items():
+        setattr(db_item, key, value)
+    db.commit()
+    return db_item
+
+def delete_item(db: Session, model, item_id: int):
+    db_item = db.query(model).filter_by(id=item_id).first()
+    db.delete(db_item)
+    db.commit()
+    return db_item

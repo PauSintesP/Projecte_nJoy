@@ -1,118 +1,88 @@
-from pydantic import BaseModel, EmailStr, Field, validator
-from datetime import date, datetime
-from typing import Optional, List
+from pydantic import BaseModel
+from typing import Optional
+from datetime import datetime, date
 
-# Localidad Schemas
 class LocalidadBase(BaseModel):
-    ciudad: str = Field(..., min_length=2, max_length=100)
+    ciudad: str
 
-class LocalidadCreate(LocalidadBase):
-    pass
-
-class LocalidadResponse(LocalidadBase):
+class LocalidadCreate(LocalidadBase): pass
+class Localidad(LocalidadBase):
     id: int
+    class Config: orm_mode = True
 
-# Organizador Schemas
 class OrganizadorBase(BaseModel):
-    dni: str = Field(..., min_length=5, max_length=20)
-    ncompleto: str = Field(..., min_length=2, max_length=100)
-    email: EmailStr
-    telefono: str = Field(..., min_length=9, max_length=15)
+    dni: str
+    ncompleto: str
+    email: str
+    telefono: str
     web: Optional[str] = None
 
-class OrganizadorCreate(OrganizadorBase):
-    pass
+class Organizador(OrganizadorBase):
+    class Config: orm_mode = True
 
-class OrganizadorResponse(OrganizadorBase):
-    pass
-
-# Genero Schemas
 class GeneroBase(BaseModel):
-    nombre: str = Field(..., min_length=2, max_length=50)
+    nombre: str
 
-class GeneroCreate(GeneroBase):
-    pass
-
-class GeneroResponse(GeneroBase):
+class Genero(GeneroBase):
     id: int
+    class Config: orm_mode = True
 
-# Artista Schemas
 class ArtistaBase(BaseModel):
-    nartistico: str = Field(..., min_length=2, max_length=100)
-    nreal: str = Field(..., min_length=2, max_length=100)
+    nartistico: str
+    nreal: str
 
-class ArtistaCreate(ArtistaBase):
-    pass
-
-class ArtistaResponse(ArtistaBase):
+class Artista(ArtistaBase):
     id: int
-    eventos: List["EventoResponse"]
+    class Config: orm_mode = True
 
-# Usuario Schemas
 class UsuarioBase(BaseModel):
-    user: str = Field(..., min_length=3, max_length=50)
-    ncompleto: str = Field(..., min_length=2, max_length=100)
-    email: EmailStr
+    user: str
+    ncompleto: str
+    email: str
     fnacimiento: date
+    contrasena: str
 
-class UsuarioCreate(UsuarioBase):
-    contrasena: str = Field(..., min_length=8)
-
-    @validator('fnacimiento')
-    def validate_age(cls, v):
-        today = date.today()
-        age = today.year - v.year - ((today.month, today.day) < (v.month, v.day))
-        if age < 18:
-            raise ValueError('Debe ser mayor de 18 años')
-        return v
-class UsuarioResponse(UsuarioBase):
+class Usuario(UsuarioBase):
     id: int
+    class Config: orm_mode = True
 
-# Evento Schemas
 class EventoBase(BaseModel):
-    nombre: str = Field(..., min_length=2, max_length=100)
-    descripcion: str = Field(..., min_length=10, max_length=201)
+    nombre: str
+    descripcion: str
     localidad_id: int
-    recinto: str = Field(..., min_length=2, max_length=100)
-    plazas: int = Field(..., gt=0)
+    recinto: str
+    plazas: int
     fechayhora: datetime
-    tipo: str = Field(..., min_length=2, max_length=50)
-    categoria_precio: str = Field(..., min_length=2, max_length=50)
+    tipo: str
+    categoria_precio: str
     organizador_dni: str
-    genero: int
+    genero_id: int
+    imagen: Optional[str]
 
-class EventoCreate(EventoBase):
-    artistas: List[int]
-
-class EventoResponse(EventoBase):
+class Evento(EventoBase):
     id: int
-    artistas: List["ArtistaResponse"] 
+    class Config: orm_mode = True
 
-# Ticket Schemas
 class TicketBase(BaseModel):
     evento_id: int
+    usuario_id: int
+    activado: Optional[bool] = True
 
-class TicketCreate(TicketBase):
-    pass
-
-class TicketResponse(TicketBase):
+class Ticket(TicketBase):
     id: int
-    activado: bool
-    
+    class Config: orm_mode = True
 
-# Pago Schemas
 class PagoBase(BaseModel):
     usuario_id: int
-    metodo_pago: str = Field(..., min_length=2, max_length=50)
-    total: float = Field(..., gt=0)
+    metodo_pago: str
+    total: float
     fecha: datetime
     ticket_id: int
 
-class PagoCreate(PagoBase):
-    pass
-
-class PagoResponse(PagoBase):
+class Pago(PagoBase):
     id: int
+    class Config: orm_mode = True
 
-EventoResponse.update_forward_refs()
-ArtistaResponse.update_forward_refs()
+class LoginInput(BaseModel):
+    email: str
+    contrasena: str
