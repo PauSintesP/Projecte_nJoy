@@ -43,28 +43,28 @@ class Evento(Base):
     id = Column(Integer, primary_key=True, index=True)
     nombre = Column(String(100), nullable=False)
     descripcion = Column(String(201), nullable=False)
-    localidad_id = Column(Integer, ForeignKey('localidad.id'))
+    localidad_id = Column(Integer, ForeignKey('LOCALIDAD.id'))
     recinto = Column(String(100), nullable=False)
     plazas = Column(Integer, nullable=False)
     fechayhora = Column(DateTime, nullable=False)
     tipo = Column(String(50), nullable=False)
     categoria_precio = Column(String(50), nullable=False)
-    organizador_dni = Column(String(20), ForeignKey('organizador.dni'))
-    genero_id = Column(Integer, ForeignKey('genero.id'))
+    organizador_dni = Column(String(20), ForeignKey('ORGANIZADOR.dni'))
+    genero_id = Column(Integer, ForeignKey('GENERO.id'))
     imagen = Column(String(100))
 
 class Ticket(Base):
     __tablename__ = 'TICKET'
     id = Column(Integer, primary_key=True, index=True)
-    evento_id = Column(Integer, ForeignKey('evento.id'))
-    usuario_id = Column(Integer, ForeignKey('usuario.id'))
+    evento_id = Column(Integer, ForeignKey('EVENTO.id'))
+    usuario_id = Column(Integer, ForeignKey('USUARIO.id'))
     activado = Column(Boolean, default=True)
 
 class Pago(Base):
     __tablename__ = 'PAGO'
     id = Column(Integer, primary_key=True, index=True)
-    usuario_id = Column(Integer, ForeignKey('usuario.id'))
+    usuario_id = Column(Integer, ForeignKey('USUARIO.id'))
     metodo_pago = Column(String(50), nullable=False)
     total = Column(DECIMAL(10, 2), nullable=False)
     fecha = Column(DateTime, nullable=False)
-    ticket_id = Column(Integer, ForeignKey('ticket.id'), unique=True)
+    ticket_id = Column(Integer, ForeignKey('TICKET.id'), unique=True)
