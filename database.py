@@ -8,6 +8,9 @@ DATABASE_URL = settings.DATABASE_URL
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+if not DATABASE_URL:
+    raise ValueError("DATABASE_URL is not set. Please check your environment variables.")
+
 engine = create_engine(
     DATABASE_URL,
     pool_pre_ping=True,
