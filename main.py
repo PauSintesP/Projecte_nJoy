@@ -669,6 +669,21 @@ def health_check():
         "version": settings.APP_VERSION
     }
 
+@app.get("/init-db")
+def init_db():
+    """
+    Endpoint temporal para inicializar las tablas de la base de datos.
+    Útil para despliegues en Vercel donde no tenemos acceso a consola.
+    """
+    try:
+        models.Base.metadata.create_all(bind=engine)
+        return {"message": "Tablas creadas correctamente en la base de datos"}
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear tablas: {str(e)}"
+        )
+
 @app.get("/")
 def root():
     """Endpoint raíz con información de la API"""
