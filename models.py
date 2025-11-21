@@ -3,6 +3,7 @@ from sqlalchemy.orm import relationship
 from database import Base
 from sqlalchemy.orm import Session
 from database import SessionLocal
+from datetime import datetime
 
 
 class Localidad(Base):
@@ -32,11 +33,13 @@ class Artista(Base):
 class Usuario(Base):
     __tablename__ = 'USUARIO'
     id = Column(Integer, primary_key=True, index=True)
-    user = Column(String(50), nullable=False, unique=True)
+    user = Column(String(50), nullable=False, unique=True, index=True)
     ncompleto = Column(String(100), nullable=False)
-    email = Column(String(100), nullable=False)
+    email = Column(String(100), nullable=False, unique=True, index=True)
     fnacimiento = Column(Date, nullable=False)
-    contrasena = Column(String(255), nullable=False)
+    contrasena = Column(String(255), nullable=False)  # Almacenará el hash bcrypt
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.now, nullable=False)
 
 class Evento(Base):
     __tablename__ = 'EVENTO'
