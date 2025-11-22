@@ -110,11 +110,12 @@ Para más información, consulta la documentación completa o contacta con el eq
 
 
 
-# Configurar CORS usando los orígenes permitidos del archivo de configuración
+# TEMPORAL: CORS permisivo para testing - identificar el problema
+# Una vez funcionando, volver a usar settings.ALLOWED_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"],  # Temporal - permite todos los orígenes
+    allow_credentials=False,  # Debe ser False cuando allow_origins es ["*"]
     allow_methods=["*"],
     allow_headers=["*"],
 )
