@@ -525,19 +525,17 @@ def create_evento(
 def read_eventos(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    """Obtener todos los eventos (requiere autenticación)"""
+    """Obtener todos los eventos (endpoint público)"""
     return crud.get_items(db, models.Evento, skip, limit)
 
 @app.get("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
 def read_evento(
     item_id: int,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    """Obtener un evento por ID (requiere autenticación)"""
+    """Obtener un evento por ID (endpoint público)"""
     return crud.get_item(db, models.Evento, item_id)
 
 @app.put("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
