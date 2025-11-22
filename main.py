@@ -7,6 +7,7 @@ from typing import List
 # Imports locales
 from database import SessionLocal, engine
 import models, schemas, crud
+import seed_data
 from auth import (
     get_db,
     get_current_active_user,
@@ -766,7 +767,26 @@ def init_db():
             detail=f"Error al crear tablas: {str(e)}"
         )
 
-@app.get("/", tags=["Health"])
+@app.get("/seed-db")
+def seed_db(db: Session = Depends(get_db)):
+    """
+    Endpoint para poblar la base de datos con datos ficticios.
+    ⚠️ ADVERTENCIA: Esto BORRARÁ todos los datos existentes.
+    Solo usar en desarrollo/testing.
+    """
+    try:
+        stats = seed_data.seed_database(db)
+        return {
+            "message": "Base de datos poblada con datos ficticios",
+            "datos_creados": stats
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al poblar la base de datos: {str(e)}"
+        )
+
+@app.get("/")
 def root():
     """Endpoint raíz con información de la API"""
     return {
@@ -775,3 +795,4 @@ def root():
         "docs": "/docs",
         "redoc": "/redoc"
     }
+
