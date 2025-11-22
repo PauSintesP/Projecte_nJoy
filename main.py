@@ -110,14 +110,10 @@ Para más información, consulta la documentación completa o contacta con el eq
 
 
 
+# Configurar CORS usando los orígenes permitidos del archivo de configuración
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "https://web-njoy-egc16t0xh-pausintesps-projects.vercel.app",
-        "https://web-njoy.vercel.app",
-        "https://*.vercel.app",
-    ],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
