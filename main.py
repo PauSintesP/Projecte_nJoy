@@ -792,3 +792,18 @@ def root():
         "redoc": "/redoc"
     }
 
+@app.get("/debug/cors", tags=["Health"])
+def debug_cors():
+    """
+    Endpoint de diagnóstico para verificar la configuración de CORS
+    ⚠️ Solo para debugging - ELIMINAR en producción
+    """
+    import os
+    return {
+        "allowed_origins": settings.ALLOWED_ORIGINS,
+        "allowed_origins_count": len(settings.ALLOWED_ORIGINS),
+        "env_variable_raw": os.getenv("ALLOWED_ORIGINS", "NOT_SET"),
+        "app_name": settings.APP_NAME
+    }
+
+

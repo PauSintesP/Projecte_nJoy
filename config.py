@@ -18,10 +18,13 @@ class Settings:
     DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql+pymysql://root:123@127.0.0.1/BBDDJoy")
     
     # CORS - Dominios permitidos
-    ALLOWED_ORIGINS: List[str] = os.getenv(
-        "ALLOWED_ORIGINS", 
-        "http://localhost:3000,http://localhost:5173,http://localhost:8080"
-    ).split(",")
+    ALLOWED_ORIGINS: List[str] = [
+        origin.strip() 
+        for origin in os.getenv(
+            "ALLOWED_ORIGINS", 
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+        ).split(",")
+    ]
     
     # Configuración de la aplicación
     APP_NAME: str = "nJoy API"
