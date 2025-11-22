@@ -1,3 +1,4 @@
+# Version: 3.0.0 - CORS Fix Deployment
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
