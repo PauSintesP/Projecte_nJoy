@@ -11,6 +11,15 @@ class Token(BaseModel):
     access_token: str
     refresh_token: str
     token_type: str = "bearer"
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+                "token_type": "bearer"
+            }
+        }
 
 class TokenData(BaseModel):
     """Datos extraídos del token JWT"""
@@ -66,6 +75,17 @@ class Usuario(BaseModel):
     
     class Config:
         orm_mode = True
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "user": "johndoe",
+                "ncompleto": "John Doe",
+                "email": "john.doe@example.com",
+                "fnacimiento": "1995-06-15",
+                "is_active": True,
+                "created_at": "2025-11-21T10:30:00"
+            }
+        }
 
 class UsuarioWithPassword(Usuario):
     """Schema interno con contraseña (solo para uso interno)"""
@@ -147,6 +167,22 @@ class Evento(EventoBase):
     id: int
     class Config:
         orm_mode = True
+        schema_extra = {
+            "example": {
+                "id": 1,
+                "nombre": "Festival de Verano 2025",
+                "descripcion": "El mejor festival de música electrónica del año con los mejores DJs internacionales",
+                "localidad_id": 1,
+                "recinto": "Estadio Municipal",
+                "plazas": 5000,
+                "fechayhora": "2025-07-15T20:00:00",
+                "tipo": "Festival",
+                "categoria_precio": "Premium",
+                "organizador_dni": "12345678A",
+                "genero_id": 1,
+                "imagen": "festival_verano_2025.jpg"
+            }
+        }
 
 # ============================================
 # Schemas de Ticket
@@ -186,3 +222,11 @@ class LoginInput(BaseModel):
     """Datos de entrada para login"""
     email: EmailStr
     contrasena: str
+    
+    class Config:
+        schema_extra = {
+            "example": {
+                "email": "john.doe@example.com",
+                "contrasena": "mySecurePassword123"
+            }
+        }

@@ -20,19 +20,101 @@ from config import settings
 # Crear tablas en la base de datos
 models.Base.metadata.create_all(bind=engine)
 
-# Inicializar FastAPI
+# Inicializar FastAPI con metadata completa para documentación
 app = FastAPI(
     title=settings.APP_NAME,
     version=settings.APP_VERSION,
-    description="API segura para gestión de eventos con autenticación JWT",
+    description="""
+## 🎉 nJoy API - Plataforma de Gestión de Eventos
+
+API RESTful completa para la gestión de eventos, artistas, tickets y pagos.
+
+### Características principales:
+
+* 🔐 **Autenticación JWT** - Sistema seguro con access y refresh tokens
+* 👥 **Gestión de usuarios** - Registro, login y perfiles de usuario
+* 🎭 **Eventos y artistas** - CRUD completo para eventos musicales
+* 🎫 **Sistema de tickets** - Compra y gestión de entradas
+* 💳 **Procesamiento de pagos** - Registro de transacciones
+* 🏢 **Organizadores** - Gestión de promotores de eventos
+* 📍 **Localidades** - Gestión de ubicaciones y recintos
+
+### Seguridad
+
+Todos los endpoints (excepto `/register`, `/login`, `/health` y `/`) requieren autenticación mediante Bearer token.
+
+Para autenticarte:
+1. Registra un usuario en `/register`
+2. Obtén tokens en `/login`
+3. Incluye el header: `Authorization: Bearer <access_token>`
+
+### Soporte
+
+Para más información, consulta la documentación completa o contacta con el equipo de desarrollo.
+    """,
+    contact={
+        "name": "nJoy Development Team",
+        "email": "support@njoy.com",
+        "url": "https://njoy.com/support"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT"
+    },
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    openapi_tags=[
+        {
+            "name": "Authentication",
+            "description": "Operaciones de autenticación y gestión de tokens. Estos endpoints son **públicos**."
+        },
+        {
+            "name": "Users",
+            "description": "Gestión de usuarios registrados. Requiere autenticación."
+        },
+        {
+            "name": "Events",
+            "description": "CRUD completo para eventos musicales. Requiere autenticación."
+        },
+        {
+            "name": "Tickets",
+            "description": "Gestión de tickets de eventos. Los usuarios solo pueden gestionar sus propios tickets."
+        },
+        {
+            "name": "Payments",
+            "description": "Registro y consulta de pagos. Los usuarios solo pueden ver sus propios pagos."
+        },
+        {
+            "name": "Artists",
+            "description": "Gestión de artistas musicales. Requiere autenticación."
+        },
+        {
+            "name": "Genres",
+            "description": "Gestión de géneros musicales. Requiere autenticación."
+        },
+        {
+            "name": "Organizers",
+            "description": "Gestión de organizadores de eventos. Requiere autenticación."
+        },
+        {
+            "name": "Locations",
+            "description": "Gestión de localidades y ciudades. Requiere autenticación."
+        },
+        {
+            "name": "Health",
+            "description": "Endpoints de monitoreo y estado del servicio. Públicos."
+        }
+    ]
 )
 
-# Configurar CORS
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
+    allow_origins=[
+        "http://localhost:5173",
+        "https://web-njoy.vercel.app",
+        "https://*.vercel.app",            
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -42,7 +124,7 @@ app.add_middleware(
 # ENDPOINTS DE AUTENTICACIÓN (PÚBLICOS)
 # ============================================
 
-@app.post("/register", response_model=schemas.Usuario, status_code=status.HTTP_201_CREATED)
+@app.post("/register", response_model=schemas.Usuario, status_code=status.HTTP_201_CREATED, tags=["Authentication"])
 def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
     """
     Registrar un nuevo usuario
@@ -61,7 +143,7 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
             detail=f"Error al crear usuario: {str(e)}"
         )
 
-@app.post("/login", response_model=schemas.Token)
+@app.post("/login", response_model=schemas.Token, tags=["Authentication"])
 def login(credentials: schemas.LoginInput, db: Session = Depends(get_db)):
     """
     Login de usuario
@@ -93,7 +175,7 @@ def login(credentials: schemas.LoginInput, db: Session = Depends(get_db)):
         "token_type": "bearer"
     }
 
-@app.post("/token/refresh", response_model=schemas.Token)
+@app.post("/token/refresh", response_model=schemas.Token, tags=["Authentication"])
 def refresh_token(token_request: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
     """
     Renovar access token usando refresh token
@@ -135,7 +217,7 @@ def refresh_token(token_request: schemas.RefreshTokenRequest, db: Session = Depe
             detail="Token inválido o expirado"
         )
 
-@app.get("/me", response_model=schemas.Usuario)
+@app.get("/me", response_model=schemas.Usuario, tags=["Users"])
 def get_current_user_info(current_user: models.Usuario = Depends(get_current_active_user)):
     """
     Obtener información del usuario actual autenticado
@@ -146,7 +228,7 @@ def get_current_user_info(current_user: models.Usuario = Depends(get_current_act
 # ENDPOINTS DE LOCALIDAD (PROTEGIDOS)
 # ============================================
 
-@app.post("/localidad/", response_model=schemas.Localidad, status_code=status.HTTP_201_CREATED)
+@app.post("/localidad/", response_model=schemas.Localidad, status_code=status.HTTP_201_CREATED, tags=["Locations"])
 def create_localidad(
     item: schemas.LocalidadCreate,
     db: Session = Depends(get_db),
@@ -155,7 +237,7 @@ def create_localidad(
     """Crear una nueva localidad (requiere autenticación)"""
     return crud.create_item(db, models.Localidad, item)
 
-@app.get("/localidad/", response_model=List[schemas.Localidad])
+@app.get("/localidad/", response_model=List[schemas.Localidad], tags=["Locations"])
 def read_localidades(
     skip: int = 0,
     limit: int = 100,
@@ -165,7 +247,7 @@ def read_localidades(
     """Obtener todas las localidades (requiere autenticación)"""
     return crud.get_items(db, models.Localidad, skip, limit)
 
-@app.get("/localidad/{item_id}", response_model=schemas.Localidad)
+@app.get("/localidad/{item_id}", response_model=schemas.Localidad, tags=["Locations"])
 def read_localidad(
     item_id: int,
     db: Session = Depends(get_db),
@@ -174,7 +256,7 @@ def read_localidad(
     """Obtener una localidad por ID (requiere autenticación)"""
     return crud.get_item(db, models.Localidad, item_id)
 
-@app.put("/localidad/{item_id}", response_model=schemas.Localidad)
+@app.put("/localidad/{item_id}", response_model=schemas.Localidad, tags=["Locations"])
 def update_localidad(
     item_id: int,
     item: schemas.LocalidadCreate,
@@ -184,7 +266,7 @@ def update_localidad(
     """Actualizar una localidad (requiere autenticación)"""
     return crud.update_item(db, models.Localidad, item_id, item)
 
-@app.delete("/localidad/{item_id}")
+@app.delete("/localidad/{item_id}", tags=["Locations"])
 def delete_localidad(
     item_id: int,
     db: Session = Depends(get_db),
@@ -197,7 +279,7 @@ def delete_localidad(
 # ENDPOINTS DE ORGANIZADOR (PROTEGIDOS)
 # ============================================
 
-@app.post("/organizador/", response_model=schemas.Organizador, status_code=status.HTTP_201_CREATED)
+@app.post("/organizador/", response_model=schemas.Organizador, status_code=status.HTTP_201_CREATED, tags=["Organizers"])
 def create_organizador(
     item: schemas.Organizador,
     db: Session = Depends(get_db),
@@ -210,7 +292,7 @@ def create_organizador(
     db.refresh(db_item)
     return db_item
 
-@app.get("/organizador/", response_model=List[schemas.Organizador])
+@app.get("/organizador/", response_model=List[schemas.Organizador], tags=["Organizers"])
 def read_organizadores(
     skip: int = 0,
     limit: int = 100,
@@ -220,7 +302,7 @@ def read_organizadores(
     """Obtener todos los organizadores (requiere autenticación)"""
     return db.query(models.Organizador).offset(skip).limit(limit).all()
 
-@app.get("/organizador/{item_id}", response_model=schemas.Organizador)
+@app.get("/organizador/{item_id}", response_model=schemas.Organizador, tags=["Organizers"])
 def read_organizador(
     item_id: str,
     db: Session = Depends(get_db),
@@ -232,7 +314,7 @@ def read_organizador(
         raise HTTPException(status_code=404, detail="Organizador no encontrado")
     return org
 
-@app.put("/organizador/{item_id}", response_model=schemas.Organizador)
+@app.put("/organizador/{item_id}", response_model=schemas.Organizador, tags=["Organizers"])
 def update_organizador(
     item_id: str,
     item: schemas.Organizador,
@@ -249,7 +331,7 @@ def update_organizador(
     db.refresh(db_item)
     return db_item
 
-@app.delete("/organizador/{item_id}")
+@app.delete("/organizador/{item_id}", tags=["Organizers"])
 def delete_organizador(
     item_id: str,
     db: Session = Depends(get_db),
@@ -267,7 +349,7 @@ def delete_organizador(
 # ENDPOINTS DE GÉNERO (PROTEGIDOS)
 # ============================================
 
-@app.post("/genero/", response_model=schemas.Genero, status_code=status.HTTP_201_CREATED)
+@app.post("/genero/", response_model=schemas.Genero, status_code=status.HTTP_201_CREATED, tags=["Genres"])
 def create_genero(
     item: schemas.GeneroBase,
     db: Session = Depends(get_db),
@@ -276,7 +358,7 @@ def create_genero(
     """Crear un nuevo género (requiere autenticación)"""
     return crud.create_item(db, models.Genero, item)
 
-@app.get("/genero/", response_model=List[schemas.Genero])
+@app.get("/genero/", response_model=List[schemas.Genero], tags=["Genres"])
 def read_generos(
     skip: int = 0,
     limit: int = 100,
@@ -286,7 +368,7 @@ def read_generos(
     """Obtener todos los géneros (requiere autenticación)"""
     return crud.get_items(db, models.Genero, skip, limit)
 
-@app.get("/genero/{item_id}", response_model=schemas.Genero)
+@app.get("/genero/{item_id}", response_model=schemas.Genero, tags=["Genres"])
 def read_genero(
     item_id: int,
     db: Session = Depends(get_db),
@@ -295,7 +377,7 @@ def read_genero(
     """Obtener un género por ID (requiere autenticación)"""
     return crud.get_item(db, models.Genero, item_id)
 
-@app.put("/genero/{item_id}", response_model=schemas.Genero)
+@app.put("/genero/{item_id}", response_model=schemas.Genero, tags=["Genres"])
 def update_genero(
     item_id: int,
     item: schemas.GeneroBase,
@@ -305,7 +387,7 @@ def update_genero(
     """Actualizar un género (requiere autenticación)"""
     return crud.update_item(db, models.Genero, item_id, item)
 
-@app.delete("/genero/{item_id}")
+@app.delete("/genero/{item_id}", tags=["Genres"])
 def delete_genero(
     item_id: int,
     db: Session = Depends(get_db),
@@ -318,7 +400,7 @@ def delete_genero(
 # ENDPOINTS DE ARTISTA (PROTEGIDOS)
 # ============================================
 
-@app.post("/artista/", response_model=schemas.Artista, status_code=status.HTTP_201_CREATED)
+@app.post("/artista/", response_model=schemas.Artista, status_code=status.HTTP_201_CREATED, tags=["Artists"])
 def create_artista(
     item: schemas.ArtistaBase,
     db: Session = Depends(get_db),
@@ -327,7 +409,7 @@ def create_artista(
     """Crear un nuevo artista (requiere autenticación)"""
     return crud.create_item(db, models.Artista, item)
 
-@app.get("/artista/", response_model=List[schemas.Artista])
+@app.get("/artista/", response_model=List[schemas.Artista], tags=["Artists"])
 def read_artistas(
     skip: int = 0,
     limit: int = 100,
@@ -337,7 +419,7 @@ def read_artistas(
     """Obtener todos los artistas (requiere autenticación)"""
     return crud.get_items(db, models.Artista, skip, limit)
 
-@app.get("/artista/{item_id}", response_model=schemas.Artista)
+@app.get("/artista/{item_id}", response_model=schemas.Artista, tags=["Artists"])
 def read_artista(
     item_id: int,
     db: Session = Depends(get_db),
@@ -346,7 +428,7 @@ def read_artista(
     """Obtener un artista por ID (requiere autenticación)"""
     return crud.get_item(db, models.Artista, item_id)
 
-@app.put("/artista/{item_id}", response_model=schemas.Artista)
+@app.put("/artista/{item_id}", response_model=schemas.Artista, tags=["Artists"])
 def update_artista(
     item_id: int,
     item: schemas.ArtistaBase,
@@ -356,7 +438,7 @@ def update_artista(
     """Actualizar un artista (requiere autenticación)"""
     return crud.update_item(db, models.Artista, item_id, item)
 
-@app.delete("/artista/{item_id}")
+@app.delete("/artista/{item_id}", tags=["Artists"])
 def delete_artista(
     item_id: int,
     db: Session = Depends(get_db),
@@ -369,7 +451,7 @@ def delete_artista(
 # ENDPOINTS DE USUARIO (PROTEGIDOS)
 # ============================================
 
-@app.get("/usuario/", response_model=List[schemas.Usuario])
+@app.get("/usuario/", response_model=List[schemas.Usuario], tags=["Users"])
 def read_usuarios(
     skip: int = 0,
     limit: int = 100,
@@ -379,7 +461,7 @@ def read_usuarios(
     """Obtener todos los usuarios (requiere autenticación)"""
     return crud.get_items(db, models.Usuario, skip, limit)
 
-@app.get("/usuario/{item_id}", response_model=schemas.Usuario)
+@app.get("/usuario/{item_id}", response_model=schemas.Usuario, tags=["Users"])
 def read_usuario(
     item_id: int,
     db: Session = Depends(get_db),
@@ -388,7 +470,7 @@ def read_usuario(
     """Obtener un usuario por ID (requiere autenticación)"""
     return crud.get_item(db, models.Usuario, item_id)
 
-@app.put("/usuario/{item_id}", response_model=schemas.Usuario)
+@app.put("/usuario/{item_id}", response_model=schemas.Usuario, tags=["Users"])
 def update_usuario(
     item_id: int,
     item: schemas.UsuarioUpdate,
@@ -406,7 +488,7 @@ def update_usuario(
         )
     return crud.update_item(db, models.Usuario, item_id, item)
 
-@app.delete("/usuario/{item_id}")
+@app.delete("/usuario/{item_id}", tags=["Users"])
 def delete_usuario(
     item_id: int,
     db: Session = Depends(get_db),
@@ -427,7 +509,7 @@ def delete_usuario(
 # ENDPOINTS DE EVENTO (PROTEGIDOS)
 # ============================================
 
-@app.post("/evento/", response_model=schemas.Evento, status_code=status.HTTP_201_CREATED)
+@app.post("/evento/", response_model=schemas.Evento, status_code=status.HTTP_201_CREATED, tags=["Events"])
 def create_evento(
     item: schemas.EventoBase,
     db: Session = Depends(get_db),
@@ -436,7 +518,7 @@ def create_evento(
     """Crear un nuevo evento (requiere autenticación)"""
     return crud.create_item(db, models.Evento, item)
 
-@app.get("/evento/", response_model=List[schemas.Evento])
+@app.get("/evento/", response_model=List[schemas.Evento], tags=["Events"])
 def read_eventos(
     skip: int = 0,
     limit: int = 100,
@@ -446,7 +528,7 @@ def read_eventos(
     """Obtener todos los eventos (requiere autenticación)"""
     return crud.get_items(db, models.Evento, skip, limit)
 
-@app.get("/evento/{item_id}", response_model=schemas.Evento)
+@app.get("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
 def read_evento(
     item_id: int,
     db: Session = Depends(get_db),
@@ -455,7 +537,7 @@ def read_evento(
     """Obtener un evento por ID (requiere autenticación)"""
     return crud.get_item(db, models.Evento, item_id)
 
-@app.put("/evento/{item_id}", response_model=schemas.Evento)
+@app.put("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
 def update_evento(
     item_id: int,
     item: schemas.EventoBase,
@@ -465,7 +547,7 @@ def update_evento(
     """Actualizar un evento (requiere autenticación)"""
     return crud.update_item(db, models.Evento, item_id, item)
 
-@app.delete("/evento/{item_id}")
+@app.delete("/evento/{item_id}", tags=["Events"])
 def delete_evento(
     item_id: int,
     db: Session = Depends(get_db),
@@ -478,7 +560,7 @@ def delete_evento(
 # ENDPOINTS DE TICKET (PROTEGIDOS)
 # ============================================
 
-@app.post("/ticket/", response_model=schemas.Ticket, status_code=status.HTTP_201_CREATED)
+@app.post("/ticket/", response_model=schemas.Ticket, status_code=status.HTTP_201_CREATED, tags=["Tickets"])
 def create_ticket(
     item: schemas.TicketBase,
     db: Session = Depends(get_db),
@@ -495,7 +577,7 @@ def create_ticket(
         )
     return crud.create_item(db, models.Ticket, item)
 
-@app.get("/ticket/", response_model=List[schemas.Ticket])
+@app.get("/ticket/", response_model=List[schemas.Ticket], tags=["Tickets"])
 def read_tickets(
     skip: int = 0,
     limit: int = 100,
@@ -510,7 +592,7 @@ def read_tickets(
         models.Ticket.usuario_id == current_user.id
     ).offset(skip).limit(limit).all()
 
-@app.get("/ticket/{item_id}", response_model=schemas.Ticket)
+@app.get("/ticket/{item_id}", response_model=schemas.Ticket, tags=["Tickets"])
 def read_ticket(
     item_id: int,
     db: Session = Depends(get_db),
@@ -528,7 +610,7 @@ def read_ticket(
         )
     return ticket
 
-@app.put("/ticket/{item_id}", response_model=schemas.Ticket)
+@app.put("/ticket/{item_id}", response_model=schemas.Ticket, tags=["Tickets"])
 def update_ticket(
     item_id: int,
     item: schemas.TicketBase,
@@ -547,7 +629,7 @@ def update_ticket(
         )
     return crud.update_item(db, models.Ticket, item_id, item)
 
-@app.delete("/ticket/{item_id}")
+@app.delete("/ticket/{item_id}", tags=["Tickets"])
 def delete_ticket(
     item_id: int,
     db: Session = Depends(get_db),
@@ -569,7 +651,7 @@ def delete_ticket(
 # ENDPOINTS DE PAGO (PROTEGIDOS)
 # ============================================
 
-@app.post("/pago/", response_model=schemas.Pago, status_code=status.HTTP_201_CREATED)
+@app.post("/pago/", response_model=schemas.Pago, status_code=status.HTTP_201_CREATED, tags=["Payments"])
 def create_pago(
     item: schemas.PagoBase,
     db: Session = Depends(get_db),
@@ -586,7 +668,7 @@ def create_pago(
         )
     return crud.create_item(db, models.Pago, item)
 
-@app.get("/pago/", response_model=List[schemas.Pago])
+@app.get("/pago/", response_model=List[schemas.Pago], tags=["Payments"])
 def read_pagos(
     skip: int = 0,
     limit: int = 100,
@@ -601,7 +683,7 @@ def read_pagos(
         models.Pago.usuario_id == current_user.id
     ).offset(skip).limit(limit).all()
 
-@app.get("/pago/{item_id}", response_model=schemas.Pago)
+@app.get("/pago/{item_id}", response_model=schemas.Pago, tags=["Payments"])
 def read_pago(
     item_id: int,
     db: Session = Depends(get_db),
@@ -619,7 +701,7 @@ def read_pago(
         )
     return pago
 
-@app.put("/pago/{item_id}", response_model=schemas.Pago)
+@app.put("/pago/{item_id}", response_model=schemas.Pago, tags=["Payments"])
 def update_pago(
     item_id: int,
     item: schemas.PagoBase,
@@ -638,7 +720,7 @@ def update_pago(
         )
     return crud.update_item(db, models.Pago, item_id, item)
 
-@app.delete("/pago/{item_id}")
+@app.delete("/pago/{item_id}", tags=["Payments"])
 def delete_pago(
     item_id: int,
     db: Session = Depends(get_db),
@@ -660,7 +742,7 @@ def delete_pago(
 # ENDPOINT DE SALUD (PÚBLICO)
 # ============================================
 
-@app.get("/health")
+@app.get("/health", tags=["Health"])
 def health_check():
     """Verificar que la API está funcionando"""
     return {
@@ -684,7 +766,7 @@ def init_db():
             detail=f"Error al crear tablas: {str(e)}"
         )
 
-@app.get("/")
+@app.get("/", tags=["Health"])
 def root():
     """Endpoint raíz con información de la API"""
     return {
