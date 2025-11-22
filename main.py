@@ -109,12 +109,14 @@ Para más información, consulta la documentación completa o contacta con el eq
 )
 
 
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "https://web-njoy-egc16t0xh-pausintesps-projects.vercel.app",
         "https://web-njoy.vercel.app",
-        "https://*.vercel.app",            
+        "https://*.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
