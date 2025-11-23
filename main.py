@@ -111,15 +111,33 @@ Para más información, consulta la documentación completa o contacta con el eq
 
 
 
-# TEMPORAL: CORS permisivo para testing - identificar el problema
-# Una vez funcionando, volver a usar settings.ALLOWED_ORIGINS
+# CORS Configuration - Multiple layers for Vercel compatibility
+# Layer 1: FastAPI's built-in CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Temporal - permite todos los orígenes
-    allow_credentials=False,  # Debe ser False cuando allow_origins es ["*"]
+    allow_origins=["*"],  # Permite todos los orígenes temporarily
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Layer 2: Custom middleware to FORCE CORS headers (fallback for Vercel)
+@app.middleware("http")
+async def add_cors_headers(request, call_next):
+    """
+    Middleware personalizado que GARANTIZA que los headers CORS estén presentes
+    Esto es necesario porque el CORSMiddleware de FastAPI puede no funcionar
+    correctamente en el entorno servless de Vercel
+    """
+    response = await call_next(request)
+    
+    # Forzar headers CORS en TODAS las responses
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "*"
+    response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Max-Age"] = "3600"
+    
+    return response
 
 # ============================================
 # ENDPOINTS DE AUTENTICACIÓN (PÚBLICOS)
