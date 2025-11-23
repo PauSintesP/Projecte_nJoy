@@ -127,8 +127,21 @@ async def add_cors_headers(request, call_next):
     """
     Middleware personalizado que GARANTIZA que los headers CORS estén presentes
     Esto es necesario porque el CORSMiddleware de FastAPI puede no funcionar
-    correctamente en el entorno servless de Vercel
+    correctamente en el entorno serverless de Vercel
     """
+    # Handle OPTIONS requests (preflight) explicitly
+    if request.method == "OPTIONS":
+        from fastapi.responses import Response
+        return Response(
+            status_code=200,
+            headers={
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "*",
+                "Access-Control-Allow-Headers": "*",
+                "Access-Control-Max-Age": "3600",
+            }
+        )
+    
     response = await call_next(request)
     
     # Forzar headers CORS en TODAS las responses
