@@ -822,6 +822,16 @@ def root():
         "redoc": "/redoc"
     }
 
+@app.get("/test-deployment-nov24")
+def test_deployment():
+    """Test endpoint to verify deployment is working - November 24 2025"""
+    return {
+        "status": "OK",
+        "message": "Backend is deployed and running - November 24 16:15",
+        "version": "3.1.0-test"
+    }
+
+
 @app.get("/debug/cors", tags=["Health"])
 def debug_cors():
     """
