@@ -7,7 +7,7 @@ def get_user_by_email(db: Session, email: str):
     """Obtener usuario por email"""
     return db.query(models.Usuario).filter(models.Usuario.email == email).first()
 
-def login_user(db: Session, email: str, contrasena: str):
+def login_user(db: Session, email: str, password: str):
     """
     Login de usuario con verificación de contraseña hasheada
     """
@@ -16,7 +16,7 @@ def login_user(db: Session, email: str, contrasena: str):
         return None
     
     # Verificar contraseña hasheada
-    if not verify_password(contrasena, user.contrasena):
+    if not verify_password(password, user.password):
         return None
     
     return user
@@ -29,8 +29,13 @@ def create_item(db: Session, model, schema):
     item_dict = schema.dict()
     
     # Si es un usuario, hashear la contraseña antes de guardar
-    if model == models.Usuario and 'contrasena' in item_dict:
-        item_dict['contrasena'] = hash_password(item_dict['contrasena'])
+    if model == models.Usuario:
+        if 'password' in item_dict:
+            item_dict['password'] = hash_password(item_dict['password'])
+        elif 'contrasena' in item_dict:
+            # Support legacy field name
+            item_dict['password'] = hash_password(item_dict['contrasena'])
+            del item_dict['contrasena']
     
     # Verificar si ya existe (para evitar duplicados)
     if model == models.Usuario:
@@ -38,14 +43,6 @@ def create_item(db: Session, model, schema):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="El email ya está registrado"
-            )
-        existing_user = db.query(models.Usuario).filter(
-            models.Usuario.user == item_dict['user']
-        ).first()
-        if existing_user:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="El nombre de usuario ya existe"
             )
     
     db_item = model(**item_dict)
@@ -83,8 +80,12 @@ def update_item(db: Session, model, item_id: int, schema):
     update_data = schema.dict(exclude_unset=True)
     
     # Si es un usuario y se actualiza la contraseña, hashearla
-    if model == models.Usuario and 'contrasena' in update_data:
-        update_data['contrasena'] = hash_password(update_data['contrasena'])
+    if model == models.Usuario:
+        if 'password' in update_data:
+            update_data['password'] = hash_password(update_data['password'])
+        elif 'contrasena' in update_data:
+            update_data['password'] = hash_password(update_data['contrasena'])
+            del update_data['contrasena']
     
     for key, value in update_data.items():
         setattr(db_item, key, value)

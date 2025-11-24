@@ -205,7 +205,7 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[models
     if not user:
         return None
     
-    if not verify_password(password, user.contrasena):
+    if not verify_password(password, user.password):
         return None
     
     return user

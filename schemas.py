@@ -36,13 +36,14 @@ class RefreshTokenRequest(BaseModel):
 
 class UsuarioBase(BaseModel):
     """Schema base de usuario (para crear/actualizar)"""
-    user: str = Field(..., min_length=3, max_length=50)
-    ncompleto: str = Field(..., min_length=1, max_length=100)
     email: EmailStr
-    fnacimiento: date
-    contrasena: str = Field(..., min_length=6)
+    nombre: str = Field(..., min_length=1, max_length=50, description="First name")
+    apellidos: str = Field(..., min_length=1, max_length=100, description="Last name")
+    fecha_nacimiento: date = Field(..., description="Date of birth")
+    pais: Optional[str] = Field(None, max_length=100, description="Country")
+    password: str = Field(..., min_length=6, alias="contrasena")
     
-    @validator('fnacimiento')
+    @validator('fecha_nacimiento')
     def validate_age(cls, v):
         """Validar que el usuario sea mayor de edad"""
         today = date.today()
@@ -50,6 +51,9 @@ class UsuarioBase(BaseModel):
         if age < 13:
             raise ValueError('Debes tener al menos 13 años')
         return v
+    
+    class Config:
+        allow_population_by_field_name = True  # Allow both 'password' and 'contrasena'
 
 class UsuarioCreate(UsuarioBase):
     """Schema para registro de usuario"""
@@ -57,19 +61,24 @@ class UsuarioCreate(UsuarioBase):
 
 class UsuarioUpdate(BaseModel):
     """Schema para actualizar usuario (todos los campos opcionales)"""
-    user: Optional[str] = Field(None, min_length=3, max_length=50)
-    ncompleto: Optional[str] = Field(None, min_length=1, max_length=100)
+    nombre: Optional[str] = Field(None, min_length=1, max_length=50)
+    apellidos: Optional[str] = Field(None, min_length=1, max_length=100)
     email: Optional[EmailStr] = None
-    fnacimiento: Optional[date] = None
-    contrasena: Optional[str] = Field(None, min_length=6)
+    fecha_nacimiento: Optional[date] = None
+    pais: Optional[str] = None
+    password: Optional[str] = Field(None, min_length=6, alias="contrasena")
+    
+    class Config:
+        allow_population_by_field_name = True
 
 class Usuario(BaseModel):
     """Schema de respuesta de usuario (sin contraseña)"""
     id: int
-    user: str
-    ncompleto: str
+    nombre: str
+    apellidos: str
     email: str
-    fnacimiento: date
+    fecha_nacimiento: date
+    pais: Optional[str]
     is_active: bool
     created_at: datetime
     
@@ -78,10 +87,11 @@ class Usuario(BaseModel):
         schema_extra = {
             "example": {
                 "id": 1,
-                "user": "johndoe",
-                "ncompleto": "John Doe",
+                "nombre": "John",
+                "apellidos": "Doe",
                 "email": "john.doe@example.com",
-                "fnacimiento": "1995-06-15",
+                "fecha_nacimiento": "1995-06-15",
+                "pais": "España",
                 "is_active": True,
                 "created_at": "2025-11-21T10:30:00"
             }
@@ -89,7 +99,7 @@ class Usuario(BaseModel):
 
 class UsuarioWithPassword(Usuario):
     """Schema interno con contraseña (solo para uso interno)"""
-    contrasena: str
+    password: str
 
 # ============================================
 # Schemas de Localidad
