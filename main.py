@@ -273,10 +273,9 @@ def create_localidad(
 def read_localidades(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    """Obtener todas las localidades (requiere autenticación)"""
+    """Obtener todas las localidades (público)"""
     return crud.get_items(db, models.Localidad, skip, limit)
 
 @app.get("/localidad/{item_id}", response_model=schemas.Localidad, tags=["Locations"])
@@ -394,10 +393,9 @@ def create_genero(
 def read_generos(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    """Obtener todos los géneros (requiere autenticación)"""
+    """Obtener todos los géneros (público)"""
     return crud.get_items(db, models.Genero, skip, limit)
 
 @app.get("/genero/{item_id}", response_model=schemas.Genero, tags=["Genres"])
@@ -445,10 +443,9 @@ def create_artista(
 def read_artistas(
     skip: int = 0,
     limit: int = 100,
-    db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    db: Session = Depends(get_db)
 ):
-    """Obtener todos los artistas (requiere autenticación)"""
+    """Obtener todos los artistas (público)"""
     return crud.get_items(db, models.Artista, skip, limit)
 
 @app.get("/artista/{item_id}", response_model=schemas.Artista, tags=["Artists"])
