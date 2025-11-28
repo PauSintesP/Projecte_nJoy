@@ -115,7 +115,7 @@ Para más información, consulta la documentación completa o contacta con el eq
 # Layer 1: FastAPI's built-in CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,  # Dominios específicos permitidos
+    allow_origins=["*"],  # Permitir todos temporalmente para debug
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -137,7 +137,7 @@ async def add_cors_headers(request, call_next):
         return Response(
             status_code=200,
             headers={
-                "Access-Control-Allow-Origin": origin if origin in settings.ALLOWED_ORIGINS else settings.ALLOWED_ORIGINS[0],
+                "Access-Control-Allow-Origin": "*",
                 "Access-Control-Allow-Methods": "*",
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Credentials": "true",
@@ -148,10 +148,7 @@ async def add_cors_headers(request, call_next):
     response = await call_next(request)
     
     # Forzar headers CORS en TODAS las responses
-    if origin in settings.ALLOWED_ORIGINS:
-        response.headers["Access-Control-Allow-Origin"] = origin
-    else:
-        response.headers["Access-Control-Allow-Origin"] = settings.ALLOWED_ORIGINS[0]
+    response.headers["Access-Control-Allow-Origin"] = "*"
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"

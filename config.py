@@ -22,7 +22,7 @@ class Settings:
         origin.strip() 
         for origin in os.getenv(
             "ALLOWED_ORIGINS", 
-            "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://web-njoy.vercel.app"
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://web-njoy.vercel.app,https://web-njoy-kdt4bjgbo-pausintesps-projects.vercel.app"
         ).split(",")
     ]
     
