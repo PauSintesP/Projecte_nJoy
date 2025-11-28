@@ -591,7 +591,7 @@ def update_evento(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_promotor)
 ):
-    """Actualizar un evento (requiere rol de promotor)""""
+    """Actualizar un evento (requiere rol de promotor)"""
     return crud.update_item(db, models.Evento, item_id, item)
 
 @app.delete("/evento/{item_id}", tags=["Events"])
