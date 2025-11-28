@@ -209,3 +209,25 @@ def authenticate_user(db: Session, email: str, password: str) -> Optional[models
         return None
     
     return user
+
+def get_current_promotor(
+    current_user: models.Usuario = Depends(get_current_active_user)
+) -> models.Usuario:
+    """
+    Dependency para verificar que el usuario sea promotor
+    
+    Args:
+        current_user: Usuario obtenido del token
+        
+    Returns:
+        Usuario promotor
+        
+    Raises:
+        HTTPException: Si el usuario no es promotor
+    """
+    if current_user.role != 'promotor':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los promotores pueden realizar esta acción"
+        )
+    return current_user

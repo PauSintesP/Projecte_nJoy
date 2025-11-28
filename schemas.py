@@ -43,6 +43,7 @@ class UsuarioBase(BaseModel):
     fecha_nacimiento: date = Field(..., description="Date of birth")
     pais: Optional[str] = Field(None, max_length=100, description="Country")
     password: str = Field(..., min_length=6, alias="contrasena")
+    role: Optional[str] = Field('user', pattern='^(user|promotor)$', description="User role: user or promotor")
     
     @field_validator('fecha_nacimiento')
     @classmethod
@@ -70,6 +71,7 @@ class UsuarioUpdate(BaseModel):
     fecha_nacimiento: Optional[date] = None
     pais: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6, alias="contrasena")
+    role: Optional[str] = Field(None, pattern='^(user|promotor)$')
     
     model_config = ConfigDict(
         populate_by_name=True
@@ -83,6 +85,7 @@ class Usuario(BaseModel):
     email: str
     fecha_nacimiento: date
     pais: Optional[str]
+    role: str
     is_active: bool
     created_at: datetime
     
@@ -96,6 +99,7 @@ class Usuario(BaseModel):
                 "email": "john.doe@example.com",
                 "fecha_nacimiento": "1995-06-15",
                 "pais": "España",
+                "role": "user",
                 "is_active": True,
                 "created_at": "2025-11-21T10:30:00"
             }

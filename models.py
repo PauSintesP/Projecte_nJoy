@@ -39,6 +39,7 @@ class Usuario(Base):
     fecha_nacimiento = Column(Date, nullable=False)
     pais = Column(String(100), nullable=True)
     password = Column(String(255), nullable=False)  # Almacenará el hash bcrypt
+    role = Column(String(20), default='user', nullable=False)  # 'user' o 'promotor'
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 

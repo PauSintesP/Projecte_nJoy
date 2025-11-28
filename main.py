@@ -13,6 +13,7 @@ import seed_data
 from auth import (
     get_db,
     get_current_active_user,
+    get_current_promotor,
     create_access_token,
     create_refresh_token,
     authenticate_user,
@@ -561,9 +562,9 @@ def delete_usuario(
 def create_evento(
     item: schemas.EventoBase,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    current_user: models.Usuario = Depends(get_current_promotor)
 ):
-    """Crear un nuevo evento (requiere autenticación)"""
+    """Crear un nuevo evento (requiere rol de promotor)"""
     return crud.create_item(db, models.Evento, item)
 
 @app.get("/evento/", response_model=List[schemas.Evento], tags=["Events"])
@@ -588,18 +589,18 @@ def update_evento(
     item_id: int,
     item: schemas.EventoBase,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    current_user: models.Usuario = Depends(get_current_promotor)
 ):
-    """Actualizar un evento (requiere autenticación)"""
+    """Actualizar un evento (requiere rol de promotor)""""
     return crud.update_item(db, models.Evento, item_id, item)
 
 @app.delete("/evento/{item_id}", tags=["Events"])
 def delete_evento(
     item_id: int,
     db: Session = Depends(get_db),
-    current_user: models.Usuario = Depends(get_current_active_user)
+    current_user: models.Usuario = Depends(get_current_promotor)
 ):
-    """Eliminar un evento (requiere autenticación)"""
+    """Eliminar un evento (requiere rol de promotor)"""
     return crud.delete_item(db, models.Evento, item_id)
 
 # ============================================
