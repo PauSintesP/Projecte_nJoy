@@ -3,7 +3,8 @@ from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 from datetime import timedelta
-from typing import List
+from typing import List, Optional
+from pydantic import BaseModel
 
 # Imports locales
 from database import SessionLocal, engine
@@ -600,6 +601,259 @@ def delete_evento(
 ):
     """Eliminar un evento (requiere autenticación)"""
     return crud.delete_item(db, models.Evento, item_id)
+
+# ============================================
+# ENDPOINTS DE GÉNERO (PROTEGIDOS/PÚBLICOS)
+# ============================================
+
+@app.post("/genero/", response_model=schemas.Genero, status_code=status.HTTP_201_CREATED, tags=["Genres"])
+def create_genero(
+    item: schemas.GeneroBase,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Crear un nuevo género (requiere autenticación)"""
+    return crud.create_item(db, models.Genero, item)
+
+@app.post("/genero/auto", response_model=schemas.Genero, status_code=status.HTTP_201_CREATED, tags=["Genres"])
+def create_or_get_genero(
+    nombre: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Crear un género automáticamente si no existe, o devolver el existente.
+    Ideal para formularios donde el usuario puede escribir un género nuevo.
+    """
+    # Buscar si ya existe un género con ese nombre (case-insensitive)
+    existing = db.query(models.Genero).filter(
+        models.Genero.nombre.ilike(nombre.strip())
+    ).first()
+    
+    if existing:
+        return existing
+    
+    # Si no existe, crear uno nuevo
+    new_genero = models.Genero(nombre=nombre.strip())
+    db.add(new_genero)
+    db.commit()
+    db.refresh(new_genero)
+    return new_genero
+
+@app.get("/genero/", response_model=List[schemas.Genero], tags=["Genres"])
+def read_generos(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Obtener todos los géneros (endpoint público)"""
+    return crud.get_items(db, models.Genero, skip, limit)
+
+@app.get("/genero/{item_id}", response_model=schemas.Genero, tags=["Genres"])
+def read_genero(
+    item_id: int,
+    db: Session = Depends(get_db)
+):
+    """Obtener un género por ID (endpoint público)"""
+    return crud.get_item(db, models.Genero, item_id)
+
+@app.put("/genero/{item_id}", response_model=schemas.Genero, tags=["Genres"])
+def update_genero(
+    item_id: int,
+    item: schemas.GeneroBase,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Actualizar un género (requiere autenticación)"""
+    return crud.update_item(db, models.Genero, item_id, item)
+
+@app.delete("/genero/{item_id}", tags=["Genres"])
+def delete_genero(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Eliminar un género (requiere autenticación)"""
+    return crud.delete_item(db, models.Genero, item_id)
+
+# ============================================
+# ENDPOINTS DE LOCALIDAD (PROTEGIDOS/PÚBLICOS)
+# ============================================
+
+class LocalidadCreate(BaseModel):
+    ciudad: str
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
+
+@app.post("/localidad/", response_model=schemas.Localidad, status_code=status.HTTP_201_CREATED, tags=["Locations"])
+def create_localidad(
+    item: schemas.LocalidadBase,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Crear una nueva localidad (requiere autenticación)"""
+    return crud.create_item(db, models.Localidad, item)
+
+@app.post("/localidad/auto", response_model=schemas.Localidad, status_code=status.HTTP_201_CREATED, tags=["Locations"])
+def create_or_get_localidad(
+    ciudad: str,
+    latitud: Optional[float] = None,
+    longitud: Optional[float] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Crear una localidad automáticamente si no existe, o devolver la existente.
+    Puede incluir coordenadas de latitud y longitud.
+    """
+    # Buscar si ya existe una localidad con ese nombre (case-insensitive)
+    existing = db.query(models.Localidad).filter(
+        models.Localidad.ciudad.ilike(ciudad.strip())
+    ).first()
+    
+    if existing:
+        return existing
+    
+    # Si no existe, crear una nueva
+    new_localidad = models.Localidad(ciudad=ciudad.strip())
+    db.add(new_localidad)
+    db.commit()
+    db.refresh(new_localidad)
+    return new_localidad
+
+@app.get("/localidad/", response_model=List[schemas.Localidad], tags=["Locations"])
+def read_localidades(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Obtener todas las localidades (endpoint público)"""
+    return crud.get_items(db, models.Localidad, skip, limit)
+
+@app.get("/localidad/{item_id}", response_model=schemas.Localidad, tags=["Locations"])
+def read_localidad(
+    item_id: int,
+    db: Session = Depends(get_db)
+):
+    """Obtener una localidad por ID (endpoint público)"""
+    return crud.get_item(db, models.Localidad, item_id)
+
+@app.put("/localidad/{item_id}", response_model=schemas.Localidad, tags=["Locations"])
+def update_localidad(
+    item_id: int,
+    item: schemas.LocalidadBase,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Actualizar una localidad (requiere autenticación)"""
+    return crud.update_item(db, models.Localidad, item_id, item)
+
+@app.delete("/localidad/{item_id}", tags=["Locations"])
+def delete_localidad(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Eliminar una localidad (requiere autenticación)"""
+    return crud.delete_item(db, models.Localidad, item_id)
+
+# ============================================
+# ENDPOINTS DE ORGANIZADOR (PROTEGIDOS/PÚBLICOS)
+# ============================================
+
+@app.post("/organizador/", response_model=schemas.Organizador, status_code=status.HTTP_201_CREATED, tags=["Organizers"])
+def create_organizador(
+    item: schemas.OrganizadorBase,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Crear un nuevo organizador (requiere autenticación)"""
+    return crud.create_item(db, models.Organizador, item)
+
+@app.post("/organizador/auto", response_model=schemas.Organizador, status_code=status.HTTP_201_CREATED, tags=["Organizers"])
+def create_or_get_organizador(
+    dni: str,
+    ncompleto: str,
+    email: str,
+    telefono: str,
+    web: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Crear un organizador automáticamente si no existe, o devolver el existente.
+    """
+    # Buscar si ya existe un organizador con ese DNI
+    existing = db.query(models.Organizador).filter(
+        models.Organizador.dni == dni.strip()
+    ).first()
+    
+    if existing:
+        return existing
+    
+    # Si no existe, crear uno nuevo
+    new_organizador = models.Organizador(
+        dni=dni.strip(),
+        ncompleto=ncompleto.strip(),
+        email=email.strip(),
+        telefono=telefono.strip(),
+        web=web.strip() if web else None
+    )
+    db.add(new_organizador)
+    db.commit()
+    db.refresh(new_organizador)
+    return new_organizador
+
+@app.get("/organizador/", response_model=List[schemas.Organizador], tags=["Organizers"])
+def read_organizadores(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db)
+):
+    """Obtener todos los organizadores (endpoint público)"""
+    return crud.get_items(db, models.Organizador, skip, limit)
+
+@app.get("/organizador/{dni}", response_model=schemas.Organizador, tags=["Organizers"])
+def read_organizador(
+    dni: str,
+    db: Session = Depends(get_db)
+):
+    """Obtener un organizador por DNI (endpoint público)"""
+    organizador = db.query(models.Organizador).filter(models.Organizador.dni == dni).first()
+    if not organizador:
+        raise HTTPException(status_code=404, detail="Organizador no encontrado")
+    return organizador
+
+@app.put("/organizador/{dni}", response_model=schemas.Organizador, tags=["Organizers"])
+def update_organizador(
+    dni: str,
+    item: schemas.OrganizadorBase,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Actualizar un organizador (requiere autenticación)"""
+    organizador = db.query(models.Organizador).filter(models.Organizador.dni == dni).first()
+    if not organizador:
+        raise HTTPException(status_code=404, detail="Organizador no encontrado")
+    for key, value in item.model_dump(exclude_unset=True).items():
+        setattr(organizador, key, value)
+    db.commit()
+    db.refresh(organizador)
+    return organizador
+
+@app.delete("/organizador/{dni}", tags=["Organizers"])
+def delete_organizador(
+    dni: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Eliminar un organizador (requiere autenticación)"""
+    organizador = db.query(models.Organizador).filter(models.Organizador.dni == dni).first()
+    if not organizador:
+        raise HTTPException(status_code=404, detail="Organizador no encontrado")
+    db.delete(organizador)
+    db.commit()
+    return {"message": "Organizador eliminado correctamente"}
 
 # ============================================
 # ENDPOINTS DE TICKET (PROTEGIDOS)

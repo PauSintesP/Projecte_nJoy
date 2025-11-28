@@ -164,14 +164,14 @@ class Artista(ArtistaBase):
 class EventoBase(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100)
     descripcion: str = Field(..., min_length=1, max_length=201)
-    localidad_id: int
-    recinto: str = Field(..., min_length=1, max_length=100)
-    plazas: int = Field(..., gt=0)
-    fechayhora: datetime
-    tipo: str = Field(..., min_length=1, max_length=50)
-    categoria_precio: str = Field(..., min_length=1, max_length=50)
-    organizador_dni: str
-    genero_id: int
+    localidad_id: Optional[int] = None
+    recinto: Optional[str] = Field(None, max_length=100)
+    plazas: Optional[int] = Field(None, gt=0)
+    fechayhora: Optional[datetime] = None
+    tipo: Optional[str] = Field(None, max_length=50)
+    categoria_precio: Optional[str] = Field(None, max_length=50)
+    organizador_dni: Optional[str] = None
+    genero_id: Optional[int] = None
     imagen: Optional[str] = Field(None, max_length=100)
 
 class Evento(EventoBase):
