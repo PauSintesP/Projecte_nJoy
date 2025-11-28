@@ -172,11 +172,17 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
     - Username debe ser único
     """
     try:
+        print(f"DEBUG: Received user data: {user.model_dump()}")
         new_user = crud.create_item(db, models.Usuario, user)
+        print(f"DEBUG: User created successfully with ID: {new_user.id}")
         return new_user
     except HTTPException as e:
+        print(f"DEBUG: HTTPException raised: {e.detail}")
         raise e
     except Exception as e:
+        print(f"DEBUG: Unexpected exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error al crear usuario: {str(e)}"
