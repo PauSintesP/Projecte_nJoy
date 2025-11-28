@@ -115,8 +115,8 @@ Para más información, consulta la documentación completa o contacta con el eq
 # Layer 1: FastAPI's built-in CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permite todos los orígenes temporarily
-    allow_credentials=False,
+    allow_origins=settings.ALLOWED_ORIGINS,  # Dominios específicos permitidos
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -129,15 +129,18 @@ async def add_cors_headers(request, call_next):
     Esto es necesario porque el CORSMiddleware de FastAPI puede no funcionar
     correctamente en el entorno serverless de Vercel
     """
+    origin = request.headers.get("origin")
+    
     # Handle OPTIONS requests (preflight) explicitly
     if request.method == "OPTIONS":
         from fastapi.responses import Response
         return Response(
             status_code=200,
             headers={
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": origin if origin in settings.ALLOWED_ORIGINS else settings.ALLOWED_ORIGINS[0],
                 "Access-Control-Allow-Methods": "*",
                 "Access-Control-Allow-Headers": "*",
+                "Access-Control-Allow-Credentials": "true",
                 "Access-Control-Max-Age": "3600",
             }
         )
@@ -145,9 +148,13 @@ async def add_cors_headers(request, call_next):
     response = await call_next(request)
     
     # Forzar headers CORS en TODAS las responses
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    if origin in settings.ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    else:
+        response.headers["Access-Control-Allow-Origin"] = settings.ALLOWED_ORIGINS[0]
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Max-Age"] = "3600"
     
     return response

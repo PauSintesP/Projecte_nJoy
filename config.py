@@ -11,8 +11,8 @@ class Settings:
     # Seguridad JWT
     SECRET_KEY: str = os.getenv("SECRET_KEY", "your-secret-key-change-this-in-production-min-32-chars")
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "43200"))  # 30 días
-    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))  # 7 días
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))  # 1 hora
+    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))  # 30 días
     
     # Base de datos
     DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql+pymysql://root:123@127.0.0.1/BBDDJoy")
@@ -22,7 +22,7 @@ class Settings:
         origin.strip() 
         for origin in os.getenv(
             "ALLOWED_ORIGINS", 
-            "http://localhost:3000,http://localhost:5173,http://localhost:8080"
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://web-njoy.vercel.app"
         ).split(",")
     ]
     
