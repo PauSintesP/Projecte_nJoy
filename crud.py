@@ -26,7 +26,8 @@ def create_item(db: Session, model, schema):
     Crear un nuevo item en la base de datos
     Si es un Usuario, hashear la contraseña
     """
-    item_dict = schema.dict()
+    # Pydantic V2 usa model_dump() en lugar de dict()
+    item_dict = schema.model_dump() if hasattr(schema, 'model_dump') else schema.dict()
     
     # Si es un usuario, hashear la contraseña antes de guardar
     if model == models.Usuario:
@@ -77,7 +78,8 @@ def update_item(db: Session, model, item_id: int, schema):
             detail=f"{model.__name__} no encontrado"
         )
     
-    update_data = schema.dict(exclude_unset=True)
+    # Pydantic V2 usa model_dump() en lugar de dict()
+    update_data = schema.model_dump(exclude_unset=True) if hasattr(schema, 'model_dump') else schema.dict(exclude_unset=True)
     
     # Si es un usuario y se actualiza la contraseña, hashearla
     if model == models.Usuario:
