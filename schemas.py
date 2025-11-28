@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
 from typing import Optional
 from datetime import datetime, date
 
@@ -12,14 +12,15 @@ class Token(BaseModel):
     refresh_token: str
     token_type: str = "bearer"
     
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "refresh_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
                 "token_type": "bearer"
             }
         }
+    )
 
 class TokenData(BaseModel):
     """Datos extraídos del token JWT"""
@@ -43,7 +44,8 @@ class UsuarioBase(BaseModel):
     pais: Optional[str] = Field(None, max_length=100, description="Country")
     password: str = Field(..., min_length=6, alias="contrasena")
     
-    @validator('fecha_nacimiento')
+    @field_validator('fecha_nacimiento')
+    @classmethod
     def validate_age(cls, v):
         """Validar que el usuario sea mayor de edad"""
         today = date.today()
@@ -52,8 +54,9 @@ class UsuarioBase(BaseModel):
             raise ValueError('Debes tener al menos 13 años')
         return v
     
-    class Config:
-        allow_population_by_field_name = True  # Allow both 'password' and 'contrasena'
+    model_config = ConfigDict(
+        populate_by_name=True  # Allow both 'password' and 'contrasena'
+    )
 
 class UsuarioCreate(UsuarioBase):
     """Schema para registro de usuario"""
@@ -68,8 +71,9 @@ class UsuarioUpdate(BaseModel):
     pais: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6, alias="contrasena")
     
-    class Config:
-        allow_population_by_field_name = True
+    model_config = ConfigDict(
+        populate_by_name=True
+    )
 
 class Usuario(BaseModel):
     """Schema de respuesta de usuario (sin contraseña)"""
@@ -82,9 +86,9 @@ class Usuario(BaseModel):
     is_active: bool
     created_at: datetime
     
-    class Config:
-        orm_mode = True
-        schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": 1,
                 "nombre": "John",
@@ -96,6 +100,7 @@ class Usuario(BaseModel):
                 "created_at": "2025-11-21T10:30:00"
             }
         }
+    )
 
 class UsuarioWithPassword(Usuario):
     """Schema interno con contraseña (solo para uso interno)"""
@@ -113,8 +118,7 @@ class LocalidadCreate(LocalidadBase):
 
 class Localidad(LocalidadBase):
     id: int
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ============================================
 # Schemas de Organizador
@@ -128,8 +132,7 @@ class OrganizadorBase(BaseModel):
     web: Optional[str] = Field(None, max_length=255)
 
 class Organizador(OrganizadorBase):
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ============================================
 # Schemas de Género
@@ -140,8 +143,7 @@ class GeneroBase(BaseModel):
 
 class Genero(GeneroBase):
     id: int
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ============================================
 # Schemas de Artista
@@ -153,8 +155,7 @@ class ArtistaBase(BaseModel):
 
 class Artista(ArtistaBase):
     id: int
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ============================================
 # Schemas de Evento
@@ -175,9 +176,9 @@ class EventoBase(BaseModel):
 
 class Evento(EventoBase):
     id: int
-    class Config:
-        orm_mode = True
-        schema_extra = {
+    model_config = ConfigDict(
+        from_attributes=True,
+        json_schema_extra={
             "example": {
                 "id": 1,
                 "nombre": "Festival de Verano 2025",
@@ -193,6 +194,7 @@ class Evento(EventoBase):
                 "imagen": "festival_verano_2025.jpg"
             }
         }
+    )
 
 # ============================================
 # Schemas de Ticket
@@ -205,8 +207,7 @@ class TicketBase(BaseModel):
 
 class Ticket(TicketBase):
     id: int
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ============================================
 # Schemas de Pago
@@ -221,8 +222,7 @@ class PagoBase(BaseModel):
 
 class Pago(PagoBase):
     id: int
-    class Config:
-        orm_mode = True
+    model_config = ConfigDict(from_attributes=True)
 
 # ============================================
 # Schema de Login
@@ -233,10 +233,11 @@ class LoginInput(BaseModel):
     email: EmailStr
     contrasena: str
     
-    class Config:
-        schema_extra = {
+    model_config = ConfigDict(
+        json_schema_extra={
             "example": {
                 "email": "john.doe@example.com",
                 "contrasena": "mySecurePassword123"
             }
         }
+    )
