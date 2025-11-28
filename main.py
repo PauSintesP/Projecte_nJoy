@@ -820,6 +820,36 @@ def init_db():
             detail=f"Error al crear tablas: {str(e)}"
         )
 
+@app.get("/drop-and-recreate-db")
+def drop_and_recreate_db():
+    """
+    ⚠️ PELIGRO: Elimina TODAS las tablas y las recrea.
+    Esto BORRARÁ TODOS LOS DATOS.
+    Solo usar en desarrollo.
+    """
+    try:
+        print("DEBUG: Dropping all tables...")
+        models.Base.metadata.drop_all(bind=engine)
+        print("DEBUG: Tables dropped successfully")
+        
+        print("DEBUG: Creating database tables...")
+        models.Base.metadata.create_all(bind=engine)
+        print("DEBUG: Database tables created successfully")
+        
+        return {
+            "message": "⚠️ TODAS las tablas fueron eliminadas y recreadas",
+            "warning": "TODOS LOS DATOS FUERON ELIMINADOS",
+            "tables": [table.name for table in models.Base.metadata.sorted_tables]
+        }
+    except Exception as e:
+        print(f"DEBUG: Error recreating tables: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al recrear tablas: {str(e)}"
+        )
+
 @app.get("/seed-db")
 def seed_db(db: Session = Depends(get_db)):
     """
