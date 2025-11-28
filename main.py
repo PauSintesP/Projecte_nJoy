@@ -799,13 +799,22 @@ def health_check():
 @app.get("/init-db")
 def init_db():
     """
-    Endpoint temporal para inicializar las tablas de la base de datos.
+    Endpoint para inicializar las tablas de la base de datos.
     Útil para despliegues en Vercel donde no tenemos acceso a consola.
+    ⚠️ ADVERTENCIA: Esto CREARÁ las tablas si no existen.
     """
     try:
+        print("DEBUG: Creating database tables...")
         models.Base.metadata.create_all(bind=engine)
-        return {"message": "Tablas creadas correctamente en la base de datos"}
+        print("DEBUG: Database tables created successfully")
+        return {
+            "message": "Tablas creadas correctamente en la base de datos",
+            "tables": [table.name for table in models.Base.metadata.sorted_tables]
+        }
     except Exception as e:
+        print(f"DEBUG: Error creating tables: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500,
             detail=f"Error al crear tablas: {str(e)}"
