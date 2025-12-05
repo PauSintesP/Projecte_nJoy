@@ -1150,18 +1150,6 @@ def delete_pago(
     if pago.usuario_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes permiso para eliminar este pago"
-        )
-    return crud.delete_item(db, models.Pago, item_id)
-
-# ============================================
-# ENDPOINT DE SALUD (PÚBLICO)
-# ============================================
-
-@app.get("/health", tags=["Health"])
-def health_check():
-    """Verificar que la API está funcionando"""
-    return {
         "status": "healthy",
         "app": settings.APP_NAME,
         "version": settings.APP_VERSION
