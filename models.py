@@ -39,8 +39,9 @@ class Usuario(Base):
     fecha_nacimiento = Column(Date, nullable=False)
     pais = Column(String(100), nullable=True)
     password = Column(String(255), nullable=False)  # Almacenará el hash bcrypt
-    role = Column(String(20), default='user', nullable=False)  # 'user' o 'promotor'
+    role = Column(String(20), default='user', nullable=False)  # 'user', 'promotor', 'owner', 'admin'
     is_active = Column(Boolean, default=True, nullable=False)
+    is_banned = Column(Boolean, default=False, nullable=False)  # Sistema de baneo
     created_at = Column(DateTime, default=datetime.now, nullable=False)
 
 class Evento(Base):

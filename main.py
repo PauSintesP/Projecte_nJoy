@@ -14,12 +14,15 @@ from auth import (
     get_db,
     get_current_active_user,
     get_current_promotor,
+    get_current_admin,
     create_access_token,
     create_refresh_token,
     authenticate_user,
     decode_token
 )
 from config import settings
+import admin_crud
+import admin_schemas
 
 # Crear tablas en la base de datos
 models.Base.metadata.create_all(bind=engine)
@@ -103,6 +106,10 @@ Para más información, consulta la documentación completa o contacta con el eq
         {
             "name": "Locations",
             "description": "Gestión de localidades y ciudades. Requiere autenticación."
+        },
+        {
+            "name": "Admin",
+            "description": "Panel de administración. Solo accesible para usuarios con rol admin. Permite gestionar usuarios, roles y baneos."
         },
         {
             "name": "Health",
@@ -553,6 +560,115 @@ def delete_usuario(
             detail="No tienes permiso para eliminar este usuario"
         )
     return crud.delete_item(db, models.Usuario, item_id)
+
+# ============================================
+# ENDPOINTS DE ADMINISTRACIÓN (SOLO ADMIN)
+# ============================================
+
+@app.get("/admin/users", response_model=List[schemas.Usuario], tags=["Admin"])
+def admin_get_all_users(
+    skip: int = 0,
+    limit: int = 100,
+    role: Optional[str] = None,
+    is_active: Optional[bool] = None,
+    is_banned: Optional[bool] = None,
+    search: Optional[str] = None,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """
+    Obtener todos los usuarios con filtros opcionales (solo admin)
+    
+    Filtros disponibles:
+    - role: Filtrar por rol (user, promotor, owner, admin)
+    - is_active: Filtrar por estado activo
+    - is_banned: Filtrar por estado baneado
+    - search: Buscar por nombre, apellidos o email
+    """
+    return admin_crud.get_all_users_admin(
+        db, skip, limit, role, is_active, is_banned, search
+    )
+
+@app.get("/admin/users/{user_id}", response_model=schemas.Usuario, tags=["Admin"])
+def admin_get_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """Obtener detalles de un usuario específico (solo admin)"""
+    return crud.get_item(db, models.Usuario, user_id)
+
+@app.put("/admin/users/{user_id}", response_model=schemas.Usuario, tags=["Admin"])
+def admin_update_user(
+    user_id: int,
+    user_data: admin_schemas.AdminUserUpdate,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """
+    Actualizar un usuario desde el panel admin
+    Permite modificar cualquier campo incluyendo role, is_active, is_banned
+    """
+    user = db.query(models.Usuario).filter(models.Usuario.id == user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Usuario no encontrado"
+        )
+    
+    # Actualizar campos proporcionados
+    update_data = user_data.model_dump(exclude_unset=True)
+    for field, value in update_data.items():
+        setattr(user, field, value)
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+@app.delete("/admin/users/{user_id}", tags=["Admin"])
+def admin_delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """Eliminar un usuario (solo admin)"""
+    return admin_crud.delete_user_admin(db, user_id)
+
+@app.post("/admin/users/{user_id}/ban", response_model=schemas.Usuario, tags=["Admin"])
+def admin_ban_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """Banear un usuario (solo admin)"""
+    return admin_crud.ban_user(db, user_id)
+
+@app.post("/admin/users/{user_id}/unban", response_model=schemas.Usuario, tags=["Admin"])
+def admin_unban_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """Desbanear un usuario (solo admin)"""
+    return admin_crud.unban_user(db, user_id)
+
+@app.post("/admin/users/{user_id}/promote-owner", response_model=schemas.Usuario, tags=["Admin"])
+def admin_promote_to_owner(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """Promover un usuario a rol 'owner' (solo admin)"""
+    return admin_crud.update_user_role(db, user_id, "owner")
+
+@app.get("/admin/statistics", response_model=admin_schemas.UserStatistics, tags=["Admin"])
+def admin_get_statistics(
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """Obtener estadísticas de usuarios (solo admin)"""
+    return admin_crud.get_user_statistics(db)
+
 
 # ============================================
 # ENDPOINTS DE EVENTO (PROTEGIDOS)

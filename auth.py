@@ -186,6 +186,14 @@ def get_current_active_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Usuario inactivo"
         )
+    
+    # Verificar que el usuario no esté baneado
+    if current_user.is_banned:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Usuario baneado"
+        )
+    
     return current_user
 
 def authenticate_user(db: Session, email: str, password: str) -> Optional[models.Usuario]:
@@ -225,9 +233,53 @@ def get_current_promotor(
     Raises:
         HTTPException: Si el usuario no es promotor
     """
-    if current_user.role != 'promotor':
+    if current_user.role not in ['promotor', 'owner', 'admin']:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Solo los promotores pueden realizar esta acción"
+            detail="Solo los promotores, owners y admins pueden realizar esta acción"
+        )
+    return current_user
+
+def get_current_admin(
+    current_user: models.Usuario = Depends(get_current_active_user)
+) -> models.Usuario:
+    """
+    Dependency para verificar que el usuario sea administrador
+    
+    Args:
+        current_user: Usuario obtenido del token
+        
+    Returns:
+        Usuario admin
+        
+    Raises:
+        HTTPException: Si el usuario no es admin
+    """
+    if current_user.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los administradores pueden realizar esta acción"
+        )
+    return current_user
+
+def get_current_owner_or_admin(
+    current_user: models.Usuario = Depends(get_current_active_user)
+) -> models.Usuario:
+    """
+    Dependency para verificar que el usuario sea owner o admin
+    
+    Args:
+        current_user: Usuario obtenido del token
+        
+    Returns:
+        Usuario owner o admin
+        
+    Raises:
+        HTTPException: Si el usuario no es owner ni admin
+    """
+    if current_user.role not in ['owner', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Solo los owners y administradores pueden realizar esta acción"
         )
     return current_user
