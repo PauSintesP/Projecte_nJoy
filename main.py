@@ -15,6 +15,7 @@ from auth import (
     get_current_active_user,
     get_current_promotor,
     get_current_admin,
+    get_current_scanner,
     create_access_token,
     create_refresh_token,
     authenticate_user,
@@ -303,7 +304,14 @@ def read_localidades(
     db: Session = Depends(get_db)
 ):
     """Obtener todas las localidades (público)"""
-    return crud.get_items(db, models.Localidad, skip, limit)
+    try:
+        return crud.get_items(db, models.Localidad, skip, limit)
+    except Exception as e:
+        print(f"ERROR in /localidad/: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return empty list instead of 500 error
+        return []
 
 @app.get("/localidad/{item_id}", response_model=schemas.Localidad, tags=["Locations"])
 def read_localidad(
@@ -690,7 +698,15 @@ def read_eventos(
     db: Session = Depends(get_db)
 ):
     """Obtener todos los eventos (endpoint público)"""
-    return crud.get_items(db, models.Evento, skip, limit)
+    try:
+        return crud.get_items(db, models.Evento, skip, limit)
+    except Exception as e:
+        print(f"ERROR in /evento/: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        # Return empty list instead of 500 error for better UX
+        # This allows the frontend to still render even if DB is temporarily unavailable
+        return []
 
 @app.get("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
 def read_evento(
@@ -1064,6 +1080,132 @@ def delete_ticket(
     return crud.delete_item(db, models.Ticket, item_id)
 
 # ============================================
+# ENDPOINTS DE SCANNER (ESCANEO DE TICKETS)
+# ============================================
+
+@app.post("/scanner/validate-ticket", response_model=schemas.TicketScanResponse, tags=["Scanner"])
+def validate_ticket(
+    request: schemas.TicketScanRequest,
+    db: Session = Depends(get_db),
+    current_scanner: models.Usuario = Depends(get_current_scanner)
+):
+    """
+    Validar un ticket (requiere rol scanner, promotor, owner o admin)
+    Retorna información del ticket, evento y usuario
+    """
+    try:
+        ticket = db.query(models.Ticket).filter(models.Ticket.id == request.ticket_id).first()
+        
+        if not ticket:
+            return schemas.TicketScanResponse(
+                success=False,
+                message="Ticket no encontrado"
+            )
+        
+        # Get event details
+        event = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+        event_name = event.nombre if event else "Evento desconocido"
+        
+        # Get user details
+        user = db.query(models.Usuario).filter(models.Usuario.id == ticket.usuario_id).first()
+        user_name = f"{user.nombre} {user.apellidos}" if user else "Usuario desconocido"
+        
+        # Check if ticket is already used
+        if not ticket.activado:
+            return schemas.TicketScanResponse(
+                success=False,
+                message="⚠️ Ticket ya utilizado",
+                ticket=ticket,
+                event_name=event_name,
+                user_name=user_name
+            )
+        
+        return schemas.TicketScanResponse(
+            success=True,
+            message="✅ Ticket válido",
+            ticket=ticket,
+            event_name=event_name,
+            user_name=user_name
+        )
+    
+    except Exception as e:
+        print(f"ERROR validating ticket: {type(e).__name__}: {str(e)}")
+        return schemas.TicketScanResponse(
+            success=False,
+            message=f"Error al validar ticket: {str(e)}"
+        )
+
+@app.post("/scanner/activate-ticket/{ticket_id}", response_model=schemas.TicketScanResponse, tags=["Scanner"])
+def activate_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_scanner: models.Usuario = Depends(get_current_scanner)
+):
+    """
+    Marcar un ticket como utilizado/activado (requiere rol scanner)
+    """
+    try:
+        ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+        
+        if not ticket:
+            return schemas.TicketScanResponse(
+                success=False,
+                message="Ticket no encontrado"
+            )
+        
+        if not ticket.activado:
+            return schemas.TicketScanResponse(
+                success=False,
+                message="Ticket ya fue utilizado anteriormente"
+            )
+        
+        # Mark ticket as used
+        ticket.activado = False
+        db.commit()
+        db.refresh(ticket)
+        
+        # Get event details
+        event = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+        event_name = event.nombre if event else "Evento desconocido"
+        
+        # Get user details
+        user = db.query(models.Usuario).filter(models.Usuario.id == ticket.usuario_id).first()
+        user_name = f"{user.nombre} {user.apellidos}" if user else "Usuario desconocido"
+        
+        return schemas.TicketScanResponse(
+            success=True,
+            message="✅ Ticket escaneado y marcado como utilizado",
+            ticket=ticket,
+            event_name=event_name,
+            user_name=user_name
+        )
+    
+    except Exception as e:
+        print(f"ERROR activating ticket: {type(e).__name__}: {str(e)}")
+        db.rollback()
+        return schemas.TicketScanResponse(
+            success=False,
+            message=f"Error al escanear ticket: {str(e)}"
+        )
+
+@app.get("/scanner/my-events", response_model=List[schemas.Evento], tags=["Scanner"])
+def get_scanner_events(
+    db: Session = Depends(get_db),
+    current_scanner: models.Usuario = Depends(get_current_scanner)
+):
+    """
+    Obtener eventos disponibles para escanear (requiere rol scanner)
+    """
+    try:
+        # Get all events - scanners can see all events to know which ones they can scan
+        events = db.query(models.Evento).all()
+        return events
+    except Exception as e:
+        print(f"ERROR getting scanner events: {type(e).__name__}: {str(e)}")
+        return []
+
+
+# ============================================
 # ENDPOINTS DE PAGO (PROTEGIDOS)
 # ============================================
 
@@ -1162,7 +1304,12 @@ def delete_pago(
 def health_check():
     """Verificar que la API está funcionando"""
     return {
+        "status": "healthy",
+        "app": settings.APP_NAME,
+        "version": settings.APP_VERSION
+    }
 
+@app.get("/init-db")
 def init_db():
     """
     Endpoint para inicializar las tablas de la base de datos.

@@ -43,7 +43,7 @@ class UsuarioBase(BaseModel):
     fecha_nacimiento: date = Field(..., description="Date of birth")
     pais: Optional[str] = Field(None, max_length=100, description="Country")
     password: str = Field(..., min_length=6, alias="contrasena")
-    role: Optional[str] = Field('user', pattern='^(user|promotor|owner|admin)$', description="User role: user, promotor, owner, or admin")
+    role: Optional[str] = Field('user', pattern='^(user|promotor|scanner|owner|admin)$', description="User role: user, promotor, scanner, owner, or admin")
     
     @field_validator('fecha_nacimiento')
     @classmethod
@@ -71,7 +71,7 @@ class UsuarioUpdate(BaseModel):
     fecha_nacimiento: Optional[date] = None
     pais: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6, alias="contrasena")
-    role: Optional[str] = Field(None, pattern='^(user|promotor|owner|admin)$')
+    role: Optional[str] = Field(None, pattern='^(user|promotor|scanner|owner|admin)$')
     
     model_config = ConfigDict(
         populate_by_name=True
@@ -243,6 +243,47 @@ class LoginInput(BaseModel):
             "example": {
                 "email": "john.doe@example.com",
                 "contrasena": "mySecurePassword123"
+            }
+        }
+    )
+
+# ============================================
+# Schemas de Scanner (Ticket Scanning)
+# ============================================
+
+class TicketScanRequest(BaseModel):
+    """Request para escanear/validar un ticket"""
+    ticket_id: int
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "ticket_id": 123
+            }
+        }
+    )
+
+class TicketScanResponse(BaseModel):
+    """Response al escanear un ticket"""
+    success: bool
+    message: str
+    ticket: Optional[Ticket] = None
+    event_name: Optional[str] = None
+    user_name: Optional[str] = None
+    
+    model_config = ConfigDict(
+        json_schema_extra={
+            "example": {
+                "success": True,
+                "message": "Ticket validado correctamente",
+                "ticket": {
+                    "id": 123,
+                    "evento_id": 1,
+                    "usuario_id": 5,
+                    "activado": True
+                },
+                "event_name": "Festival de Verano 2025",
+                "user_name": "John Doe"
             }
         }
     )

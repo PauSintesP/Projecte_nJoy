@@ -283,3 +283,26 @@ def get_current_owner_or_admin(
             detail="Solo los owners y administradores pueden realizar esta acción"
         )
     return current_user
+
+def get_current_scanner(
+    current_user: models.Usuario = Depends(get_current_active_user)
+) -> models.Usuario:
+    """
+    Dependency para verificar que el usuario tenga permisos de scanner
+    Scanner role puede escanear tickets pero no crear/editar eventos
+    
+    Args:
+        current_user: Usuario obtenido del token
+        
+    Returns:
+        Usuario scanner, promotor, owner o admin
+        
+    Raises:
+        HTTPException: Si el usuario no tiene permisos de scanner
+    """
+    if current_user.role not in ['scanner', 'promotor', 'owner', 'admin']:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permisos para escanear tickets"
+        )
+    return current_user
