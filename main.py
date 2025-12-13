@@ -135,6 +135,7 @@ origins = [
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,
+    allow_origin_regex="https://.*\.vercel\.app",  # Permitir cualquier subdominio de Vercel (previews)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1706,8 +1707,6 @@ def health_check():
         "version": settings.APP_VERSION
     }
 
-<<<<<<< Updated upstream
-=======
 @app.get("/init-db")
 def init_db():
     """

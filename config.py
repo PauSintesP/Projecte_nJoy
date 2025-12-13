@@ -37,8 +37,13 @@ class Settings:
     
     # CORS - Dominios permitidos
     # CORS - Dominios permitidos
-    # En producción Vercel, permitimos * para evitar problemas con URLs de preview dinámicas
-    ALLOWED_ORIGINS: List[str] = ["*"]
+    ALLOWED_ORIGINS: List[str] = [
+        origin.strip() 
+        for origin in os.getenv(
+            "ALLOWED_ORIGINS", 
+            "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://web-njoy.vercel.app,https://projecte-n-joy.vercel.app"
+        ).split(",")
+    ]
     
     # Configuración de la aplicación
     APP_NAME: str = "nJoy API"
