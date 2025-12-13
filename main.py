@@ -488,6 +488,18 @@ def scan_ticket(
     Solo accesible para roles: scanner, promotor, admin
     """
     # Verificar permisos
+    # 0. LIMPIEZA / PARSEO DE ENTRADA (Safety Net)
+    # Si el frontend envía un JSON string en vez del código limpio, lo parseamos aquí.
+    try:
+        if codigo_ticket.strip().startswith("{") and "codigo" in codigo_ticket:
+            import json
+            data = json.loads(codigo_ticket)
+            if "codigo" in data:
+                codigo_ticket = data["codigo"]
+                print(f"DEBUG: JSON parseado en backend. Nuevo código: {codigo_ticket}")
+    except:
+        pass # Si falla, usamos el string original
+
     # 1. BUSCAR TICKET (Priority Search)
     # Buscar ticket por código (case insensitive)
     ticket = db.query(models.Ticket).filter(
