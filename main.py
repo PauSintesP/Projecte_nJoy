@@ -539,6 +539,18 @@ def scan_ticket(
         models.Ticket.codigo_ticket.ilike(codigo_ticket.strip())
     ).first()
     
+    # FALLBACK: Si no se encuentra por código, verificar si es formato fallback "NJOY-TICKET-{ID}"
+    if not ticket and "NJOY-TICKET-" in codigo_ticket.upper():
+        try:
+            # Extraer ID
+            potential_id = codigo_ticket.upper().split("NJOY-TICKET-")[1]
+            ticket_id = int(potential_id)
+            ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+            print(f"DEBUG: Recuperado ticket por ID {ticket_id} desde QR String")
+        except:
+            print(f"DEBUG: Fallo al parsear ID de {codigo_ticket}")
+            pass
+    
     if not ticket:
         return {
             "success": False,
