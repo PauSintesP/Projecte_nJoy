@@ -556,10 +556,7 @@ def scan_ticket(
             "codigo": codigo_ticket,
             "evento": evento.nombre
         }
-            "color": "red",
-            "codigo": codigo_ticket,
-            "ticket": None
-        }
+
     
     # Obtener información del evento (si no se obtuvo antes por team check)
     if not evento:
