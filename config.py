@@ -17,22 +17,28 @@ class Settings:
     # Base de datos
     # Determinar la DATABASE_URL según el entorno
     _db_url = os.getenv("DATABASE_URL", "")
+    
+    # Soporte automático para Vercel Postgres / Neon
+    if not _db_url:
+        _db_url = os.getenv("POSTGRES_URL", "")
+        if _db_url and _db_url.startswith("postgres://"):
+            _db_url = _db_url.replace("postgres://", "postgresql://", 1)
+
+    # Soporte para MySQL o fallbacks
     if not _db_url:
         # Si no hay DATABASE_URL en las variables de entorno
         if os.getenv("ENV", "production") == "local":
             _db_url = "sqlite:///./njoy_local.db"
         else:
-            _db_url = "mysql+pymysql://root:123@127.0.0.1/BBDDJoy"
+            # Fallback peligroso para prod, pero mantenemos por compatibilidad si no se configura nada
+             _db_url = "mysql+pymysql://root:123@127.0.0.1/BBDDJoy"
+    
     DATABASE_URL: str = _db_url
     
     # CORS - Dominios permitidos
-    ALLOWED_ORIGINS: List[str] = [
-        origin.strip() 
-        for origin in os.getenv(
-            "ALLOWED_ORIGINS", 
-            "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://web-njoy.vercel.app,https://web-njoy-kdt4bjgbo-pausintesps-projects.vercel.app"
-        ).split(",")
-    ]
+    # CORS - Dominios permitidos
+    # En producción Vercel, permitimos * para evitar problemas con URLs de preview dinámicas
+    ALLOWED_ORIGINS: List[str] = ["*"]
     
     # Configuración de la aplicación
     APP_NAME: str = "nJoy API"
