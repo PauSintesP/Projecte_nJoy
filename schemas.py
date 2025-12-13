@@ -179,10 +179,11 @@ class EventoBase(BaseModel):
     genero_id: Optional[int] = None
     imagen: Optional[str] = Field(None, max_length=100)
     creador_id: Optional[int] = None  # Will be set automatically by backend
-    tickets_vendidos: Optional[int] = 0 # New field for availability
 
 class Evento(EventoBase):
     id: int
+    tickets_vendidos: Optional[int] = 0 # New field for availability (Computed)
+    
     model_config = ConfigDict(
         from_attributes=True,
         json_schema_extra={
