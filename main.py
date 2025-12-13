@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import List, Optional
 from pydantic import BaseModel
+import auth
 
 # Imports locales
 from database import SessionLocal, engine
@@ -22,11 +23,11 @@ from auth import (
     decode_token
 )
 from config import settings
+import ticket_endpoints
 import admin_crud
 import admin_schemas
-
-# Crear tablas en la base de datos
-models.Base.metadata.create_all(bind=engine)
+import admin_endpoints
+import team_endpoints
 
 # Inicializar FastAPI con metadata completa para documentación
 app = FastAPI(
@@ -122,22 +123,40 @@ Para más información, consulta la documentación completa o contacta con el eq
 
 
 # CORS Configuration - Multiple layers for Vercel compatibility
+# CORS Configuration - Multiple layers for Vercel compatibility
 # Layer 1: FastAPI's built-in CORS middleware
+origins = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "https://njoy-web.vercel.app" 
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permitir todos temporalmente para debug
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# --- ROTERS REGISTRATION ---
+# app.include_router(auth.router)  # Auth endpoints are in main.py
+app.include_router(ticket_endpoints.router)
+# app.include_router(ticket_endpoints.router) # DUPLICATE - Logic moved to main.py -> RESTORED for Mobile App compatibility
+app.include_router(team_endpoints.router)
+app.include_router(admin_endpoints.router)
+
+# Crear tablas en la base de datos (Post-app creation safe check)
+models.Base.metadata.create_all(bind=engine)
+
 # Layer 2: Custom middleware to FORCE CORS headers (fallback for Vercel)
+# IMPORTANT: When allow_credentials is True, allow_origin cannot be *
 @app.middleware("http")
 async def add_cors_headers(request, call_next):
     """
     Middleware personalizado que GARANTIZA que los headers CORS estén presentes
-    Esto es necesario porque el CORSMiddleware de FastAPI puede no funcionar
-    correctamente en el entorno serverless de Vercel
+    y sean correctos para solicitudes con credenciales.
     """
     origin = request.headers.get("origin")
     
@@ -147,7 +166,7 @@ async def add_cors_headers(request, call_next):
         return Response(
             status_code=200,
             headers={
-                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Origin": origin if origin else "*",
                 "Access-Control-Allow-Methods": "*",
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Credentials": "true",
@@ -158,11 +177,11 @@ async def add_cors_headers(request, call_next):
     response = await call_next(request)
     
     # Forzar headers CORS en TODAS las responses
-    response.headers["Access-Control-Allow-Origin"] = "*"
+    # Si hay origin, lo usamos para permitir credenciales. Si no, fallback a *
+    response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
     response.headers["Access-Control-Allow-Methods"] = "*"
     response.headers["Access-Control-Allow-Headers"] = "*"
     response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Max-Age"] = "3600"
     
     return response
 
@@ -209,8 +228,11 @@ def login(credentials: schemas.LoginInput, db: Session = Depends(get_db)):
     Login de usuario
     - Retorna access_token y refresh_token
     - Los tokens son JWT firmados
+    - Email case-insensitive
     """
-    user = authenticate_user(db, credentials.email, credentials.contrasena)
+    # Convert email to lowercase for case-insensitive comparison
+    email_lower = credentials.email.lower().strip()
+    user = authenticate_user(db, email_lower, credentials.contrasena)
     
     if not user:
         raise HTTPException(
@@ -283,6 +305,334 @@ def get_current_user_info(current_user: models.Usuario = Depends(get_current_act
     Obtener información del usuario actual autenticado
     """
     return current_user
+
+# ============================================
+# ADMIN ENDPOINTS
+# ============================================
+
+@app.post("/admin/users", tags=["Admin"], response_model=schemas.Usuario)
+def create_user_admin(
+    user_data: schemas.UsuarioCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Crear un nuevo usuario (Solo Admin)"""
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Solo administradores")
+    
+    # Email case-insensitive
+    email_lower = user_data.email.lower().strip()
+    if db.query(models.Usuario).filter(models.Usuario.email == email_lower).first():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Email ya registrado")
+    
+    from auth import hash_password
+    new_user = models.Usuario(
+        nombre=user_data.nombre,
+        apellidos=user_data.apellidos,
+        email=email_lower,
+        password=hash_password(user_data.password),
+        fecha_nacimiento=user_data.fecha_nacimiento,
+        pais=user_data.pais,
+        role=user_data.role if hasattr(user_data, 'role') and user_data.role else 'user',
+        is_active=True,
+        is_banned=False
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    return new_user
+
+# ============================================
+# TICKET ENDPOINTS
+# ============================================
+
+@app.post("/tickets/purchase", tags=["Tickets"])
+def purchase_tickets(
+    evento_id: int,
+    cantidad: int = 1,
+    nombres_asistentes: list[str] = None,  # Optional list of attendee names
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Comprar entradas - Nombres opcionales (usa nombre comprador si no se especifica)"""
+    import random
+    import string
+    
+    evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    tickets_vendidos = db.query(models.Ticket).filter(models.Ticket.evento_id == evento_id).count()
+    plazas_disponibles = evento.plazas - tickets_vendidos
+    
+    if cantidad > plazas_disponibles:
+        raise HTTPException(status_code=400, detail=f"Solo hay {plazas_disponibles} plazas disponibles")
+    
+    # If no names provided, use buyer's name for all tickets
+    if not nombres_asistentes:
+        buyer_name = f"{current_user.nombre} {current_user.apellidos}"
+        nombres_asistentes = [buyer_name] * cantidad
+    elif len(nombres_asistentes) != cantidad:
+        # If partial list, fill remaining with buyer's name
+        buyer_name = f"{current_user.nombre} {current_user.apellidos}"
+        while len(nombres_asistentes) < cantidad:
+            nombres_asistentes.append(buyer_name)
+    
+    def generate_ticket_code():
+        """Generate unique 10-digit alphanumeric ticket code"""
+        while True:
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+            if not db.query(models.Ticket).filter(models.Ticket.codigo_ticket == code).first():
+                return code
+    
+    tickets_created = []
+    for i in range(cantidad):
+        ticket_code = generate_ticket_code()
+        new_ticket = models.Ticket(
+            codigo_ticket=ticket_code,
+            nombre_asistente=nombres_asistentes[i].strip() if nombres_asistentes[i] else None,
+            evento_id=evento_id,
+            usuario_id=current_user.id,
+            activado=True
+        )
+        db.add(new_ticket)
+        tickets_created.append(new_ticket)
+    
+    db.commit()
+    for ticket in tickets_created:
+        db.refresh(ticket)
+    
+    return {
+        "message": f"¡Compra exitosa! {cantidad} entrada(s) adquirida(s)",
+        "cantidad": cantidad,
+        "total": evento.precio * cantidad if evento.precio else 0,
+        "tickets": [{"id": t.id, "codigo": t.codigo_ticket, "nombre": t.nombre_asistente, "evento_id": t.evento_id} for t in tickets_created]
+    }
+
+@app.get("/tickets/my-tickets", tags=["Tickets"])
+def get_my_tickets(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Obtener todos los tickets del usuario autenticado"""
+    tickets = db.query(models.Ticket).filter(models.Ticket.usuario_id == current_user.id).all()
+    tickets_with_events = []
+    for ticket in tickets:
+        evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+        if evento:
+            tickets_with_events.append({
+                "ticket_id": ticket.id,
+                "codigo_ticket": ticket.codigo_ticket,
+                "nombre_asistente": ticket.nombre_asistente,
+                "activado": ticket.activado,
+                "evento": {
+                    "id": evento.id,
+                    "nombre": evento.nombre,
+                    "descripcion": evento.descripcion,
+                    "fechayhora": evento.fechayhora.isoformat() if evento.fechayhora else None,
+                    "recinto": evento.recinto,
+                    "imagen": evento.imagen,
+                    "precio": evento.precio,
+                    "tipo": evento.tipo
+                }
+            })
+    return tickets_with_events
+
+@app.get("/tickets/{ticket_id}", tags=["Tickets"])
+def get_ticket_detail(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Obtener detalle de un ticket específico"""
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    
+    if ticket.usuario_id != current_user.id and current_user.role not in ['admin', 'scanner']:
+        raise HTTPException(status_code=403, detail="Sin permiso")
+    
+    evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+    return {
+        "ticket_id": ticket.id,
+        "activado": ticket.activado,
+        "usuario": {
+            "id": current_user.id,
+            "nombre": current_user.nombre,
+            "apellidos": current_user.apellidos,
+            "email": current_user.email
+        },
+        "evento": {
+            "id": evento.id,
+            "nombre": evento.nombre,
+            "descripcion": evento.descripcion,
+            "fechayhora": evento.fechayhora.isoformat() if evento.fechayhora else None,
+            "recinto": evento.recinto,
+            "imagen": evento.imagen,
+            "precio": evento.precio
+        } if evento else None
+    }
+
+@app.post("/tickets/scan/{codigo_ticket}", tags=["Tickets"])
+def scan_ticket(
+    codigo_ticket: str,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Escanear y validar ticket mediante código QR
+    - Verde: Ticket válido (primera vez)
+    - Rojo: Ticket ya usado
+    - Rojo: Ticket no existe
+    Solo accesible para roles: scanner, promotor, admin
+    """
+    # Verificar permisos
+    # Eliminamos el check estricto inicial para permitir que los miembros de equipo (con rol 'user')
+    # puedan intentar escanear. La validación real ocurre más abajo en la sección de TEAMS.
+    # if current_user.role not in ['scanner', 'promotor', 'admin']: ... -> REMOVED
+    
+    # Buscar ticket por código
+    # Buscar ticket por código (case insensitive)
+    ticket = db.query(models.Ticket).filter(
+        models.Ticket.codigo_ticket.ilike(codigo_ticket.strip())
+    ).first()
+    
+    if not ticket:
+        return {
+            "status": "error",
+            "message": "TICKET NO ENCONTRADO",
+            "color": "red",
+            "codigo": codigo_ticket
+        }
+    
+    # Obtener información del evento
+    evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+    
+    # =================================================================================
+    # VERIFICACIÓN DE PERMISOS (TEAMS)
+    # =================================================================================
+    is_authorized = False
+    
+    # 1. Admin Global
+    if current_user.role == 'admin':
+        is_authorized = True
+        
+    # 2. Creador del Evento (Owner/Promotor)
+    elif evento and evento.creador_id == current_user.id:
+        is_authorized = True
+        
+    # 3. Miembro de Equipo (Scanner)
+    elif evento:
+        # Verificar si el usuario activo pertenece a algún equipo liderado por el creador del evento
+        membership = db.query(models.TeamMember).join(models.Team).filter(
+            models.TeamMember.user_id == current_user.id,
+            models.TeamMember.status == 'accepted',
+            models.Team.leader_id == evento.creador_id
+        ).first()
+        
+        if membership:
+            is_authorized = True
+            
+    if not is_authorized:
+        return {
+            "status": "error",
+            "message": "NO AUTORIZADO (EQUIPO INCORRECTO)",
+            "color": "red",
+            "codigo": codigo_ticket,
+            "evento": evento.nombre if evento else "Desconocido"
+        }
+    # =================================================================================
+
+    # Verificar si ya fue usado
+    if not ticket.activado:
+        return {
+            "status": "error",
+            "message": "ENTRADA YA UTILIZADA",
+            "color": "red",
+            "codigo": codigo_ticket,
+            "nombre_asistente": ticket.nombre_asistente,
+            "evento": evento.nombre if evento else "Desconocido"
+        }
+    
+    # Ticket válido - marcarlo como usado
+    ticket.activado = False
+    db.commit()
+    db.refresh(ticket)
+    
+    return {
+        "success": True,
+        "status": "success",
+        "message": "ENTRADA VÁLIDA ✓",
+        "color": "green",
+        "codigo": codigo_ticket,
+        "user_name": ticket.nombre_asistente,
+        "event_name": evento.nombre if evento else "Desconocido",
+        "ticket_id": ticket.id
+    }
+
+@app.post("/scanner/activate-ticket/{ticket_id}", tags=["Tickets"])
+def activate_ticket(
+    ticket_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Activar (usar) un ticket por ID.
+    El paso previo /scan retorna el ID y valida.
+    Este endpoint marca el ticket como usado.
+    """
+    ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket no encontrado")
+    
+    # Obtener evento
+    evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+
+    # --- VERIFICACIÓN DE PERMISOS (Igual que en scan) ---
+    is_authorized = False
+    if current_user.role == 'admin':
+        is_authorized = True
+    elif evento and evento.creador_id == current_user.id:
+        is_authorized = True
+    elif evento:
+        membership = db.query(models.TeamMember).join(models.Team).filter(
+            models.TeamMember.user_id == current_user.id,
+            models.TeamMember.status == 'accepted',
+            models.Team.leader_id == evento.creador_id
+        ).first()
+        if membership:
+            is_authorized = True
+            
+    if not is_authorized:
+        return {
+            "success": False,
+            "status": "error",
+            "message": "NO AUTORIZADO",
+            "color": "red"
+        }
+    # ----------------------------------------------------
+
+    if not ticket.activado:
+        # Ya fue usado (aunque el scan previo haya dicho que existía)
+        return {
+            "success": False,
+            "status": "error",
+            "message": "YA UTILIZADO",
+            "user_name": ticket.nombre_asistente,
+            "event_name": evento.nombre if evento else "Desconocido"
+        }
+    
+    # MARCAR COMO USADO
+    ticket.activado = False
+    db.commit()
+    
+    return {
+        "success": True,
+        "status": "success",
+        "message": "ENTRADA VÁLIDA",
+        "user_name": ticket.nombre_asistente,
+        "event_name": evento.nombre if evento else "Desconocido"
+    }
 
 # ============================================
 # ENDPOINTS DE LOCALIDAD (PROTEGIDOS)
@@ -688,8 +1038,11 @@ def create_evento(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_promotor)
 ):
-    """Crear un nuevo evento (requiere rol de promotor)"""
-    return crud.create_item(db, models.Evento, item)
+    """Crear un nuevo evento (requiere rol de promotor o admin)"""
+    # Set creador_id automatically from current user
+    event_data = item.dict()
+    event_data['creador_id'] = current_user.id
+    return crud.create_item(db, models.Evento, schemas.EventoBase(**event_data))
 
 @app.get("/evento/", response_model=List[schemas.Evento], tags=["Events"])
 def read_eventos(
@@ -699,13 +1052,17 @@ def read_eventos(
 ):
     """Obtener todos los eventos (endpoint público)"""
     try:
-        return crud.get_items(db, models.Evento, skip, limit)
+        eventos = crud.get_items(db, models.Evento, skip, limit)
+        # Calculate tickets sold for each event
+        for event in eventos:
+            count = db.query(models.Ticket).filter(models.Ticket.evento_id == event.id).count()
+            setattr(event, "tickets_vendidos", count)
+        return eventos
     except Exception as e:
         print(f"ERROR in /evento/: {type(e).__name__}: {str(e)}")
         import traceback
         traceback.print_exc()
         # Return empty list instead of 500 error for better UX
-        # This allows the frontend to still render even if DB is temporarily unavailable
         return []
 
 @app.get("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
@@ -714,7 +1071,35 @@ def read_evento(
     db: Session = Depends(get_db)
 ):
     """Obtener un evento por ID (endpoint público)"""
-    return crud.get_item(db, models.Evento, item_id)
+    evento = crud.get_item(db, models.Evento, item_id)
+    if evento:
+        count = db.query(models.Ticket).filter(models.Ticket.evento_id == evento.id).count()
+        setattr(evento, "tickets_vendidos", count)
+    return evento
+
+@app.get("/eventos/mis-eventos", response_model=List[schemas.Evento], tags=["Events"])
+def get_my_eventos(
+    skip: int = 0,
+    limit: int = 100,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_promotor)
+):
+    """Obtener eventos creados por el usuario actual (promotor o admin)"""
+    if current_user.role == 'admin':
+        # Admin puede ver todos los eventos
+        eventos = crud.get_items(db, models.Evento, skip, limit)
+    else:
+        # Promotor solo ve sus propios eventos
+        eventos = db.query(models.Evento).filter(
+            models.Evento.creador_id == current_user.id
+        ).offset(skip).limit(limit).all()
+    
+    # Calculate tickets sold
+    for event in eventos:
+        count = db.query(models.Ticket).filter(models.Ticket.evento_id == event.id).count()
+        setattr(event, "tickets_vendidos", count)
+        
+    return eventos
 
 @app.put("/evento/{item_id}", response_model=schemas.Evento, tags=["Events"])
 def update_evento(
@@ -723,7 +1108,19 @@ def update_evento(
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_promotor)
 ):
-    """Actualizar un evento (requiere rol de promotor)"""
+    """Actualizar un evento (requiere rol de promotor o admin, promotor solo puede editar sus eventos)"""
+    # Get the event
+    evento = db.query(models.Evento).filter(models.Evento.id == item_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    # Check permissions: admin can edit all, promotor can only edit their own
+    if current_user.role != 'admin' and evento.creador_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="No tienes permiso para editar este evento. Solo puedes editar tus propios eventos."
+        )
+    
     return crud.update_item(db, models.Evento, item_id, item)
 
 @app.delete("/evento/{item_id}", tags=["Events"])
@@ -1309,6 +1706,134 @@ def health_check():
         "version": settings.APP_VERSION
     }
 
+<<<<<<< Updated upstream
+=======
+@app.get("/init-db")
+def init_db():
+    """
+    Endpoint para inicializar las tablas de la base de datos.
+    Útil para despliegues en Vercel donde no tenemos acceso a consola.
+    ⚠️ ADVERTENCIA: Esto CREARÁ las tablas si no existen.
+    """
+    try:
+        print("DEBUG: Creating database tables...")
+        models.Base.metadata.create_all(bind=engine)
+        print("DEBUG: Database tables created successfully")
+        return {
+            "message": "Tablas creadas correctamente en la base de datos",
+            "tables": [table.name for table in models.Base.metadata.sorted_tables]
+        }
+    except Exception as e:
+        print(f"DEBUG: Error creating tables: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al crear tablas: {str(e)}"
+        )
+
+@app.get("/seed-test-data", tags=["Admin"])
+def seed_test_data(db: Session = Depends(get_db)):
+    """
+    Seed database with test users and events (PUBLIC - for initial setup)
+    """
+    
+    from datetime import date
+    
+    users_data = [
+        {"nombre": "Carlos", "apellidos": "Escáner", "email": "scanner@njoy.com", "password": "scanner123", "role": "scanner"},
+        {"nombre": "María", "apellidos": "Promotora", "email": "promotor@njoy.com", "password": "promotor123", "role": "promotor"},
+        {"nombre": "Juan", "apellidos": "Usuario", "email": "user@njoy.com", "password": "user123", "role": "user"}
+    ]
+    
+    created = []
+    for user_data in users_data:
+        if db.query(models.Usuario).filter(models.Usuario.email == user_data["email"]).first():
+            continue
+        
+        from auth import hash_password
+        new_user = models.Usuario(
+            nombre=user_data["nombre"],
+            apellidos=user_data["apellidos"],
+            email=user_data["email"],
+            password=hash_password(user_data["password"]),
+            fecha_nacimiento=date(1995, 1, 1),
+            pais="España",
+            role=user_data["role"],
+            is_active=True,
+            is_banned=False
+        )
+        db.add(new_user)
+        created.append(user_data["email"])
+    
+    # Sample events
+    from datetime import datetime
+    events_data = [
+        {
+            "nombre": "Rock Festival 2025",
+            "descripcion": "Festival de rock",
+            "fechayhora": datetime(2025, 7, 15, 20, 0),
+            "recinto": "Estadio Municipal",
+            "precio": 45.0,
+            "plazas": 5000,
+            "tipo": "Concierto",
+            "localidad_id": None,
+            "organizador_dni": None,
+            "genero_id": None
+        },
+        {
+            "nombre": "Noche Electrónica",
+            "descripcion": "DJs internacionales",
+            "fechayhora": datetime(2025, 6, 20, 22, 0),
+            "recinto": "Club Downtown",
+            "precio": 30.0,
+            "plazas": 1000,
+            "tipo": "Concierto",
+            "localidad_id": None,
+            "organizador_dni": None,
+            "genero_id": None
+        },
+        {
+            "nombre": "Jazz en Vivo",
+            "descripcion": "Velada íntima de jazz",
+            "fechayhora": datetime(2025, 5, 10, 19, 30),
+            "recinto": "Auditorio Cultural",
+            "precio": 25.0,
+            "plazas": 300,
+            "tipo": "Concierto",
+            "localidad_id": None,
+            "organizador_dni": None,
+            "genero_id": None
+        }
+    ]
+    
+    events_created = []
+    for event_data in events_data:
+        if db.query(models.Evento).filter(models.Evento.nombre == event_data["nombre"]).first():
+            continue
+        
+        new_event = models.Evento(**event_data)
+        db.add(new_event)
+        events_created.append(event_data["nombre"])
+    
+    db.commit()
+    
+    return {
+        "message": "Datos de prueba creados",
+        "users_created": created,
+        "events_created": events_created,
+        "credentials": {
+            "scanner": "scanner@njoy.com / scanner123",
+            "promotor": "promotor@njoy.com / promotor123",
+            "user": "user@njoy.com / user123"
+        }
+    }
+
+@app.get("/drop-and-recreate-db")
+def drop_and_recreate_db():
+    """
+    ⚠️ PELIGRO: Elimina TODAS las tablas y las recrea.
+>>>>>>> Stashed changes
     Esto BORRARÁ TODOS LOS DATOS.
     Solo usar en desarrollo.
     """

@@ -1,5 +1,6 @@
 from pydantic import BaseModel
 from typing import Optional
+import schemas
 
 
 class AdminUserUpdate(BaseModel):
@@ -11,6 +12,13 @@ class AdminUserUpdate(BaseModel):
     role: Optional[str] = None
     is_active: Optional[bool] = None
     is_banned: Optional[bool] = None
+
+class AdminUserCreate(schemas.UsuarioCreate):
+    """Schema para creación de usuario desde admin panel (con permisos extra)"""
+    is_active: Optional[bool] = True
+    is_banned: Optional[bool] = False
+    
+    model_config = schemas.ConfigDict(populate_by_name=True)
 
 
 class UserStatistics(BaseModel):

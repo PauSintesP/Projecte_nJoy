@@ -1,5 +1,5 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Date, Boolean, DateTime, DECIMAL, Table
-from sqlalchemy.orm import relationship
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, Boolean, DateTime, DECIMAL, Table, Float
+from sqlalchemy.orm import relationship  
 from database import Base
 from sqlalchemy.orm import Session
 from database import SessionLocal
@@ -54,14 +54,17 @@ class Evento(Base):
     plazas = Column(Integer, nullable=False)
     fechayhora = Column(DateTime, nullable=False)
     tipo = Column(String(50), nullable=False)
-    categoria_precio = Column(String(50), nullable=False)
+    precio = Column(Float, nullable=True)  # Changed from categoria_precio (String) to precio (Float)
     organizador_dni = Column(String(20), ForeignKey('ORGANIZADOR.dni'))
     genero_id = Column(Integer, ForeignKey('GENERO.id'))
     imagen = Column(String(100))
+    creador_id = Column(Integer, ForeignKey('USUARIO.id'))  # Track who created the event
 
 class Ticket(Base):
     __tablename__ = 'TICKET'
     id = Column(Integer, primary_key=True, index=True)
+    codigo_ticket = Column(String, unique=True, index=True, nullable=False)  # Unique secure code
+    nombre_asistente = Column(String, nullable=True)  # Optional attendee name
     evento_id = Column(Integer, ForeignKey('EVENTO.id'))
     usuario_id = Column(Integer, ForeignKey('USUARIO.id'))
     activado = Column(Boolean, default=True)
@@ -74,3 +77,25 @@ class Pago(Base):
     total = Column(DECIMAL(10, 2), nullable=False)
     fecha = Column(DateTime, nullable=False)
     ticket_id = Column(Integer, ForeignKey('TICKET.id'), unique=True)
+
+class Team(Base):
+    __tablename__ = 'TEAM'
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(100), unique=True, nullable=False)
+    leader_id = Column(Integer, ForeignKey('USUARIO.id')) # Promotor/Admin
+    created_at = Column(DateTime, default=datetime.now)
+
+    leader = relationship("Usuario", backref="led_teams")
+    members = relationship("TeamMember", back_populates="team")
+
+class TeamMember(Base):
+    __tablename__ = 'TEAM_MEMBER'
+    id = Column(Integer, primary_key=True, index=True)
+    team_id = Column(Integer, ForeignKey('TEAM.id'))
+    user_id = Column(Integer, ForeignKey('USUARIO.id')) # Scanner invited
+    status = Column(String(20), default='pending') # pending, accepted, rejected
+    invited_at = Column(DateTime, default=datetime.now)
+    joined_at = Column(DateTime, nullable=True)
+
+    team = relationship("Team", back_populates="members")
+    user = relationship("Usuario", backref="team_memberships")

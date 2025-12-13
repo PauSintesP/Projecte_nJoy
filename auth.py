@@ -136,35 +136,41 @@ def get_current_user(
     Raises:
         HTTPException: Si el token es inválido o el usuario no existe
     """
-    token = credentials.credentials
-    
     try:
-        payload = decode_token(token)
-        user_id: str = payload.get("sub")
+        token = credentials.credentials
         
-        if user_id is None:
+        try:
+            payload = decode_token(token)
+            user_id: str = payload.get("sub")
+            
+            if user_id is None:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token inválido",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+        except JWTError:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Token inválido",
+                detail="No se pudo validar las credenciales",
                 headers={"WWW-Authenticate": "Bearer"},
             )
-    except JWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="No se pudo validar las credenciales",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    user = db.query(models.Usuario).filter(models.Usuario.id == int(user_id)).first()
-    
-    if user is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Usuario no encontrado",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    
-    return user
+        
+        user = db.query(models.Usuario).filter(models.Usuario.id == int(user_id)).first()
+        
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Usuario no encontrado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return user
+    except Exception as e:
+        print(f"ERROR in get_current_user: {type(e).__name__}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise e
 
 def get_current_active_user(
     current_user: models.Usuario = Depends(get_current_user)

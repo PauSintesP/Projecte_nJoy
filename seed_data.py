@@ -1,16 +1,20 @@
 """
 Script para poblar la base de datos con datos ficticios
+CONFIRMADO: Schema coincide con models.py
 """
 from datetime import datetime, timedelta, date
 from sqlalchemy.orm import Session
+from sqlalchemy import text
 import models
 from auth import hash_password
 
 def seed_database(db: Session):
     """Poblar la base de datos con datos de prueba"""
     
+    print("Limpiando datos existentes...")
     # Limpiar datos existentes (solo para testing)
-    # CUIDADO: Esto borra todos los datos
+    db.query(models.TeamMember).delete()
+    db.query(models.Team).delete()
     db.query(models.Pago).delete()
     db.query(models.Ticket).delete()
     db.query(models.Evento).delete()
@@ -19,8 +23,16 @@ def seed_database(db: Session):
     db.query(models.Organizador).delete()
     db.query(models.Localidad).delete()
     db.query(models.Usuario).delete()
+    
+    # Try to reset autoincrement if sqlite
+    try:
+        db.execute(text("DELETE FROM sqlite_sequence"))
+    except Exception as e:
+        print(f"Warning: Could not reset sqlite_sequence: {e}")
+        
     db.commit()
     
+    print("Creando Localidades...")
     # 1. LOCALIDADES
     localidades = [
         models.Localidad(ciudad="Barcelona"),
@@ -31,7 +43,9 @@ def seed_database(db: Session):
     ]
     db.add_all(localidades)
     db.commit()
+    for l in localidades: db.refresh(l)
     
+    print("Creando Géneros...")
     # 2. GÉNEROS MUSICALES
     generos = [
         models.Genero(nombre="Rock"),
@@ -45,7 +59,9 @@ def seed_database(db: Session):
     ]
     db.add_all(generos)
     db.commit()
+    for g in generos: db.refresh(g)
     
+    print("Creando Organizadores...")
     # 3. ORGANIZADORES
     organizadores = [
         models.Organizador(
@@ -73,6 +89,7 @@ def seed_database(db: Session):
     db.add_all(organizadores)
     db.commit()
     
+    print("Creando Artistas...")
     # 4. ARTISTAS
     artistas = [
         models.Artista(nartistico="Rosalía", nreal="Rosalía Vila Tobella"),
@@ -87,255 +104,190 @@ def seed_database(db: Session):
     db.add_all(artistas)
     db.commit()
     
+    print("Creando Usuarios...")
     # 5. USUARIOS
     usuarios = [
         models.Usuario(
-            user="juan_perez",
-            ncompleto="Juan Pérez García",
+            nombre="Juan",
+            apellidos="Pérez García",
             email="juan@example.com",
-            fnacimiento=date(1995, 3, 15),
-            contrasena=hash_password("password123"),
+            fecha_nacimiento=date(1995, 3, 15),
+            password=hash_password("password123"),
             is_active=True,
-            created_at=datetime.now()
+            role="user"
         ),
         models.Usuario(
-            user="maria_lopez",
-            ncompleto="María López Martínez",
+            nombre="María",
+            apellidos="López Martínez",
             email="maria@example.com",
-            fnacimiento=date(1998, 7, 22),
-            contrasena=hash_password("password123"),
+            fecha_nacimiento=date(1998, 7, 22),
+            password=hash_password("password123"),
             is_active=True,
-            created_at=datetime.now()
+            role="user"
         ),
         models.Usuario(
-            user="carlos_ruiz",
-            ncompleto="Carlos Ruiz Sánchez",
+            nombre="Carlos",
+            apellidos="Ruiz Sánchez",
             email="carlos@example.com",
-            fnacimiento=date(2000, 11, 8),
-            contrasena=hash_password("password123"),
+            fecha_nacimiento=date(2000, 11, 8),
+            password=hash_password("password123"),
             is_active=True,
-            created_at=datetime.now()
+            role="scanner"
         ),
         models.Usuario(
-            user="ana_garcia",
-            ncompleto="Ana García Fernández",
+            nombre="Ana",
+            apellidos="García Fernández",
             email="ana@example.com",
-            fnacimiento=date(1997, 5, 30),
-            contrasena=hash_password("password123"),
+            fecha_nacimiento=date(1997, 5, 30),
+            password=hash_password("password123"),
             is_active=True,
-            created_at=datetime.now()
+            role="promotor"
         ),
         models.Usuario(
-            user="admin",
-            ncompleto="Administrador del Sistema",
+            nombre="Admin",
+            apellidos="Sistema",
             email="admin@njoy.com",
-            fnacimiento=date(1990, 1, 1),
-            contrasena=hash_password("admin123"),
+            fecha_nacimiento=date(1990, 1, 1),
+            password=hash_password("admin123"),
             is_active=True,
-            created_at=datetime.now()
+            role="admin"
         ),
     ]
     db.add_all(usuarios)
     db.commit()
+    for u in usuarios: db.refresh(u)
     
+    # Identify users by specific variables for clarity
+    juan = usuarios[0]
+    maria = usuarios[1]
+    carlos_scanner = usuarios[2]
+    ana_promotor = usuarios[3]
+    admin = usuarios[4]
+    
+    print("Creando Eventos...")
     # 6. EVENTOS
     now = datetime.now()
+    
     eventos = [
         models.Evento(
             nombre="Rosalía - Motomami World Tour",
-            descripcion="La gira mundial de Rosalía llega a Barcelona con su esperado álbum Motomami",
-            localidad_id=1,  # Barcelona
+            descripcion="La gira mundial de Rosalía llega a Barcelona",
+            localidad_id=localidades[0].id,  # Barcelona
             recinto="Palau Sant Jordi",
             plazas=15000,
             fechayhora=now + timedelta(days=30),
             tipo="Concierto",
-            categoria_precio="Premium",
-            organizador_dni="12345678A",
-            genero_id=2,  # Pop
-            imagen="rosalia_motomami.jpg"
+            precio=89.99,
+            organizador_dni=organizadores[0].dni,
+            genero_id=generos[1].id,  # Pop
+            imagen="rosalia_motomami.jpg",
+            creador_id=admin.id
         ),
         models.Evento(
             nombre="Bad Bunny - Un Verano Sin Ti",
-            descripcion="El Rey del Reggaeton presenta su último álbum en directo",
-            localidad_id=2,  # Madrid
+            descripcion="El Rey del Reggaeton presenta su último álbum",
+            localidad_id=localidades[1].id,  # Madrid
             recinto="WiZink Center",
             plazas=18000,
             fechayhora=now + timedelta(days=45),
             tipo="Concierto",
-            categoria_precio="VIP",
-            organizador_dni="12345678A",
-            genero_id=5,  # Reggaeton
-            imagen="badbunny.jpg"
+            precio=120.00,
+            organizador_dni=organizadores[0].dni,
+            genero_id=generos[4].id,  # Reggaeton
+            imagen="badbunny.jpg",
+            creador_id=admin.id
         ),
         models.Evento(
             nombre="Primavera Sound 2025",
-            descripcion="El festival de música indie y alternativa más importante de Europa",
-            localidad_id=1,  # Barcelona
+            descripcion="El festival de música indie más importante",
+            localidad_id=localidades[0].id,  # Barcelona
             recinto="Parc del Fòrum",
             plazas=75000,
             fechayhora=now + timedelta(days=120),
             tipo="Festival",
-            categoria_precio="Normal",
-            organizador_dni="87654321B",
-            genero_id=8,  # Indie
-            imagen="primavera_sound.jpg"
+            precio=250.00,
+            organizador_dni=organizadores[1].dni,
+            genero_id=generos[7].id,  # Indie
+            imagen="primavera_sound.jpg",
+            creador_id=admin.id
         ),
         models.Evento(
             nombre="Arctic Monkeys - The Car Tour",
-            descripcion="La banda británica presenta su nuevo álbum The Car",
-            localidad_id=3,  # Valencia
-            recinto="Ciutat de les Arts i les Ciències",
+            descripcion="La banda británica presenta su álbum",
+            localidad_id=localidades[2].id,  # Valencia
+            recinto="Ciutat de les Arts",
             plazas=25000,
             fechayhora=now + timedelta(days=60),
             tipo="Concierto",
-            categoria_precio="Premium",
-            organizador_dni="11223344C",
-            genero_id=1,  # Rock
-            imagen="arctic_monkeys.jpg"
+            precio=75.50,
+            organizador_dni=organizadores[2].dni,
+            genero_id=generos[0].id,  # Rock
+            imagen="arctic_monkeys.jpg",
+            creador_id=ana_promotor.id # Promotor Ana
         ),
         models.Evento(
-            nombre="Billie Eilish - Happier Than Ever",
-            descripcion="La sensación del pop presenta su aclamado segundo álbum",
-            localidad_id=2,  # Madrid
+            nombre="Billie Eilish - Live",
+            descripcion="La sensación del pop en directo",
+            localidad_id=localidades[1].id,  # Madrid
             recinto="Estadio Metropolitano",
             plazas=45000,
             fechayhora=now + timedelta(days=75),
             tipo="Concierto",
-            categoria_precio="Normal",
-            organizador_dni="12345678A",
-            genero_id=2,  # Pop
-            imagen="billie_eilish.jpg"
-        ),
-        models.Evento(
-            nombre="FIB Festival 2025",
-            descripcion="Festival Internacional de Benicàssim con los mejores artistas del momento",
-            localidad_id=3,  # Valencia
-            recinto="Recinto FIB",
-            plazas=50000,
-            fechayhora=now + timedelta(days=150),
-            tipo="Festival",
-            categoria_precio="Normal",
-            organizador_dni="11223344C",
-            genero_id=8,  # Indie
-            imagen="fib.jpg"
-        ),
-        models.Evento(
-            nombre="C. Tangana - Sin Cantar ni Afinar",
-            descripcion="El Madrileño trae su espectáculo único a Sevilla",
-            localidad_id=4,  # Sevilla
-            recinto="Estadio de la Cartuja",
-            plazas=30000,
-            fechayhora=now + timedelta(days=90),
-            tipo="Concierto",
-            categoria_precio="Premium",
-            organizador_dni="12345678A",
-            genero_id=2,  # Pop
-            imagen="c_tangana.jpg"
-        ),
-        models.Evento(
-            nombre="Jazz Vitoria Festival",
-            descripcion="El festival de jazz más importante del norte de España",
-            localidad_id=5,  # Bilbao
-            recinto="Plaza de la Virgen Blanca",
-            plazas=5000,
-            fechayhora=now + timedelta(days=100),
-            tipo="Festival",
-            categoria_precio="Normal",
-            organizador_dni="87654321B",
-            genero_id=4,  # Jazz
-            imagen="jazz_festival.jpg"
+            precio=95.00,
+            organizador_dni=organizadores[0].dni,
+            genero_id=generos[1].id,  # Pop
+            imagen="billie_eilish.jpg",
+            creador_id=admin.id
         ),
     ]
     db.add_all(eventos)
     db.commit()
+    for e in eventos: db.refresh(e)
     
+    print("Creando Tickets...")
     # 7. TICKETS
+    import uuid
+    def gen_code():
+        return f"NJOY-{str(uuid.uuid4())[:8].upper()}"
+
     tickets = [
-        # Juan tiene 2 tickets
-        models.Ticket(evento_id=1, usuario_id=1, activado=True),
-        models.Ticket(evento_id=3, usuario_id=1, activado=True),
-        # María tiene 3 tickets
-        models.Ticket(evento_id=2, usuario_id=2, activado=True),
-        models.Ticket(evento_id=4, usuario_id=2, activado=True),
-        models.Ticket(evento_id=5, usuario_id=2, activado=False),  # Desactivado
-        # Carlos tiene 1 ticket
-        models.Ticket(evento_id=6, usuario_id=3, activado=True),
-        # Ana tiene 2 tickets
-        models.Ticket(evento_id=7, usuario_id=4, activado=True),
-        models.Ticket(evento_id=8, usuario_id=4, activado=True),
+        # Juan buys tickets
+        models.Ticket(evento_id=eventos[0].id, usuario_id=juan.id, activado=True, codigo_ticket=gen_code(), nombre_asistente="Juan Pérez"),
+        models.Ticket(evento_id=eventos[2].id, usuario_id=juan.id, activado=True, codigo_ticket=gen_code(), nombre_asistente="Juan Pérez"),
+        # María buys tickets
+        models.Ticket(evento_id=eventos[1].id, usuario_id=maria.id, activado=True, codigo_ticket=gen_code(), nombre_asistente="María López"),
+        models.Ticket(evento_id=eventos[3].id, usuario_id=maria.id, activado=True, codigo_ticket=gen_code(), nombre_asistente="María López"),
+        models.Ticket(evento_id=eventos[4].id, usuario_id=maria.id, activado=False, codigo_ticket=gen_code(), nombre_asistente="María López"),
+        # Carlos scanner buys ticket
+        models.Ticket(evento_id=eventos[0].id, usuario_id=carlos_scanner.id, activado=True, codigo_ticket=gen_code(), nombre_asistente="Carlos Ruiz"),
     ]
+    
     db.add_all(tickets)
     db.commit()
-    
+    for t in tickets: db.refresh(t)
+
+    print("Creando Pagos...")
     # 8. PAGOS
+    # Need to match ticket IDs
     pagos = [
         models.Pago(
-            usuario_id=1,
+            usuario_id=juan.id,
             metodo_pago="Tarjeta de Crédito",
             total=89.99,
             fecha=now - timedelta(days=5),
-            ticket_id=1
+            ticket_id=tickets[0].id
         ),
         models.Pago(
-            usuario_id=1,
+            usuario_id=juan.id,
             metodo_pago="PayPal",
-            total=175.00,
+            total=250.00,
             fecha=now - timedelta(days=3),
-            ticket_id=2
-        ),
-        models.Pago(
-            usuario_id=2,
-            metodo_pago="Tarjeta de Débito",
-            total=120.50,
-            fecha=now - timedelta(days=7),
-            ticket_id=3
-        ),
-        models.Pago(
-            usuario_id=2,
-            metodo_pago="Tarjeta de Crédito",
-            total=95.00,
-            fecha=now - timedelta(days=2),
-            ticket_id=4
-        ),
-        models.Pago(
-            usuario_id=2,
-            metodo_pago="Bizum",
-            total=85.00,
-            fecha=now - timedelta(days=1),
-            ticket_id=5
-        ),
-        models.Pago(
-            usuario_id=3,
-            metodo_pago="Transferencia",
-            total=150.00,
-            fecha=now - timedelta(days=10),
-            ticket_id=6
-        ),
-        models.Pago(
-            usuario_id=4,
-            metodo_pago="Tarjeta de Crédito",
-            total=110.00,
-            fecha=now - timedelta(days=4),
-            ticket_id=7
-        ),
-        models.Pago(
-            usuario_id=4,
-            metodo_pago="PayPal",
-            total=45.00,
-            fecha=now - timedelta(days=6),
-            ticket_id=8
+            ticket_id=tickets[1].id
         ),
     ]
     db.add_all(pagos)
     db.commit()
     
     return {
-        "localidades": len(localidades),
-        "generos": len(generos),
-        "organizadores": len(organizadores),
-        "artistas": len(artistas),
-        "usuarios": len(usuarios),
-        "eventos": len(eventos),
-        "tickets": len(tickets),
-        "pagos": len(pagos)
+        "message": "Datos insertados correctamente"
     }

@@ -15,7 +15,15 @@ class Settings:
     REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "30"))  # 30 días
     
     # Base de datos
-    DATABASE_URL: str = os.getenv("DATABASE_URL", "mysql+pymysql://root:123@127.0.0.1/BBDDJoy")
+    # Determinar la DATABASE_URL según el entorno
+    _db_url = os.getenv("DATABASE_URL", "")
+    if not _db_url:
+        # Si no hay DATABASE_URL en las variables de entorno
+        if os.getenv("ENV", "production") == "local":
+            _db_url = "sqlite:///./njoy_local.db"
+        else:
+            _db_url = "mysql+pymysql://root:123@127.0.0.1/BBDDJoy"
+    DATABASE_URL: str = _db_url
     
     # CORS - Dominios permitidos
     ALLOWED_ORIGINS: List[str] = [

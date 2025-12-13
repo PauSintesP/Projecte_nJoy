@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, Field, field_validator, ConfigDict
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime, date
 
 # ============================================
@@ -170,14 +170,16 @@ class EventoBase(BaseModel):
     nombre: str = Field(..., min_length=1, max_length=100)
     descripcion: str = Field(..., min_length=1, max_length=201)
     localidad_id: Optional[int] = None
-    recinto: Optional[str] = Field(None, max_length=100)
-    plazas: Optional[int] = Field(None, gt=0)
-    fechayhora: Optional[datetime] = None
-    tipo: Optional[str] = Field(None, max_length=50)
-    categoria_precio: Optional[str] = Field(None, max_length=50)
+    recinto: str = Field(..., max_length=100)  # Required in DB
+    plazas: int = Field(..., gt=0)  # Required in DB
+    fechayhora: datetime  # Required in DB
+    tipo: str = Field(..., max_length=50)  # Required in DB
+    precio: Optional[float] = None
     organizador_dni: Optional[str] = None
     genero_id: Optional[int] = None
     imagen: Optional[str] = Field(None, max_length=100)
+    creador_id: Optional[int] = None  # Will be set automatically by backend
+    tickets_vendidos: Optional[int] = 0 # New field for availability
 
 class Evento(EventoBase):
     id: int
@@ -212,6 +214,7 @@ class TicketBase(BaseModel):
 
 class Ticket(TicketBase):
     id: int
+    codigo_ticket: Optional[str] = None
     model_config = ConfigDict(from_attributes=True)
 
 # ============================================
@@ -271,6 +274,7 @@ class TicketScanResponse(BaseModel):
     event_name: Optional[str] = None
     user_name: Optional[str] = None
     
+    
     model_config = ConfigDict(
         json_schema_extra={
             "example": {
@@ -287,3 +291,15 @@ class TicketScanResponse(BaseModel):
             }
         }
     )
+
+
+# ============================================
+# Schemas de Admin
+# ============================================
+
+class AdminUserCreate(UsuarioCreate):
+    """Schema para creación de usuario desde admin panel (con permisos extra)"""
+    is_active: Optional[bool] = True
+    is_banned: Optional[bool] = False
+    
+    model_config = ConfigDict(populate_by_name=True)
