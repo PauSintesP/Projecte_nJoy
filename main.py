@@ -488,34 +488,55 @@ def scan_ticket(
     Solo accesible para roles: scanner, promotor, admin
     """
     # Verificar permisos
-    # Obtener información del evento para validar permisos
-    evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
-    if not evento:
-         return {
+    # 1. BUSCAR TICKET (Priority Search)
+    # Buscar ticket por código (case insensitive)
+    ticket = db.query(models.Ticket).filter(
+        models.Ticket.codigo_ticket.ilike(codigo_ticket.strip())
+    ).first()
+    
+    # FALLBACK: Si no se encuentra por código, verificar si es formato fallback "NJOY-TICKET-{ID}"
+    if not ticket and "NJOY-TICKET-" in codigo_ticket.upper():
+        try:
+            potential_id = codigo_ticket.upper().split("NJOY-TICKET-")[1]
+            ticket_id = int(potential_id)
+            ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
+        except:
+            pass
+            
+    if not ticket:
+        return {
             "success": False,
             "status": "error",
-            "message": "Evento no encontrado",
+            "message": "TICKET NO ENCONTRADO",
             "color": "red",
             "codigo": codigo_ticket,
             "ticket": None
         }
 
-    # =================================================================================
-    # VERIFICACIÓN DE PERMISOS STRICT (TEAMS) - RESTORED PER USER REQUEST
-    # =================================================================================
+    # 2. OBTENER EVENTO PARA PERMISOS
+    evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+    if not evento:
+         return {
+            "success": False,
+            "status": "error",
+            "message": "Evento asociado no encontrado",
+            "color": "red",
+            "codigo": codigo_ticket
+        }
+
+    # 3. VERIFICACIÓN DE PERMISOS STRICT (TEAMS)
     is_authorized = False
     
-    # 0. Admin Global (Siempre puede)
+    # A. Admin Global
     if current_user.role == 'admin':
         is_authorized = True
 
-    # 1. Creador del Evento (Owner/Promotor) chck
+    # B. Creador del Evento
     elif evento.creador_id == current_user.id:
         is_authorized = True
         
-    # 2. Miembro de Equipo (Scanner)
+    # C. Miembro de Equipo
     else:
-        # Verificar si el usuario activo pertenece a algún equipo liderado por el creador del evento
         membership = db.query(models.TeamMember).join(models.Team).filter(
             models.TeamMember.user_id == current_user.id,
             models.TeamMember.status == 'accepted',
@@ -526,38 +547,15 @@ def scan_ticket(
             is_authorized = True
             
     if not is_authorized:
+        debug_msg = f"User[{current_user.id}] vs Creator[{evento.creador_id}]"
         return {
             "success": False,
             "status": "error",
-            "message": "NO AUTORIZADO (No eres miembro del equipo)",
+            "message": f"⛔ NO AUTORIZADO: {debug_msg}. (No eres miembro del equipo)",
             "color": "red",
             "codigo": codigo_ticket,
             "evento": evento.nombre
         }
-    # =================================================================================
-
-    # Buscar ticket por código (case insensitive)
-    ticket = db.query(models.Ticket).filter(
-        models.Ticket.codigo_ticket.ilike(codigo_ticket.strip())
-    ).first()
-    
-    # FALLBACK: Si no se encuentra por código, verificar si es formato fallback "NJOY-TICKET-{ID}"
-    if not ticket and "NJOY-TICKET-" in codigo_ticket.upper():
-        try:
-            # Extraer ID
-            potential_id = codigo_ticket.upper().split("NJOY-TICKET-")[1]
-            ticket_id = int(potential_id)
-            ticket = db.query(models.Ticket).filter(models.Ticket.id == ticket_id).first()
-            print(f"DEBUG: Recuperado ticket por ID {ticket_id} desde QR String")
-        except:
-            print(f"DEBUG: Fallo al parsear ID de {codigo_ticket}")
-            pass
-    
-    if not ticket:
-        return {
-            "success": False,
-            "status": "error",
-            "message": "TICKET NO ENCONTRADO",
             "color": "red",
             "codigo": codigo_ticket,
             "ticket": None
