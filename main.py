@@ -1054,10 +1054,23 @@ def create_evento(
     current_user: models.Usuario = Depends(get_current_promotor)
 ):
     """Crear un nuevo evento (requiere rol de promotor o admin)"""
-    # Set creador_id automatically from current user
-    event_data = item.dict()
-    event_data['creador_id'] = current_user.id
-    return crud.create_item(db, models.Evento, schemas.EventoBase(**event_data))
+    try:
+        # Set creador_id automatically from current user
+        event_data = item.dict()
+        event_data['creador_id'] = current_user.id
+        return crud.create_item(db, models.Evento, schemas.EventoBase(**event_data))
+    except Exception as e:
+        print(f"ERROR creating event: {str(e)}")
+        # Check for IntegrityError (FK violation)
+        if "Foreign key violation" in str(e) or "IntegrityError" in str(e) or "foreign key constraint" in str(e):
+             raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Datos inválidos: Violación de integridad (verifique Organizador DNI, Localidad ID, Género ID). Detalle: {str(e)}"
+            )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error al crear evento: {str(e)}"
+        )
 
 @app.get("/evento/", response_model=List[schemas.Evento], tags=["Events"])
 def read_eventos(
