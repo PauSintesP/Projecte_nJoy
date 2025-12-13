@@ -488,11 +488,52 @@ def scan_ticket(
     Solo accesible para roles: scanner, promotor, admin
     """
     # Verificar permisos
-    # Eliminamos el check estricto inicial para permitir que los miembros de equipo (con rol 'user')
-    # puedan intentar escanear. La validación real ocurre más abajo en la sección de TEAMS.
-    # if current_user.role not in ['scanner', 'promotor', 'admin']: ... -> REMOVED
-    
-    # Buscar ticket por código
+    # Modificado para permitir roles globales (scanner/admin) sin depender de Teams estrictamente
+    evento = None # Initialize evento to None
+    if current_user.role in ['admin', 'scanner', 'promotor', 'owner']:
+        # Permitir acceso global
+        pass
+    else:
+        # Fallback a lógica de equipos
+        # =================================================================================
+        # VERIFICACIÓN DE PERMISOS (TEAMS)
+        # =================================================================================
+        is_authorized = False
+        
+        # First, try to find the ticket to get the event_id for team checks
+        ticket_for_event_check = db.query(models.Ticket).filter(
+            models.Ticket.codigo_ticket.ilike(codigo_ticket.strip())
+        ).first()
+        if ticket_for_event_check:
+            evento = db.query(models.Evento).filter(models.Evento.id == ticket_for_event_check.evento_id).first()
+
+        # 1. Creador del Evento (Owner/Promotor) check extendido
+        if evento and evento.creador_id == current_user.id:
+            is_authorized = True
+            
+        # 2. Miembro de Equipo (Scanner)
+        elif evento:
+            # Verificar si el usuario activo pertenece a algún equipo liderado por el creador del evento
+            membership = db.query(models.TeamMember).join(models.Team).filter(
+                models.TeamMember.user_id == current_user.id,
+                models.TeamMember.status == 'accepted',
+                models.Team.leader_id == evento.creador_id
+            ).first()
+            
+            if membership:
+                is_authorized = True
+                
+        if not is_authorized:
+            return {
+                "success": False,
+                "status": "error",
+                "message": "NO AUTORIZADO (EQUIPO INCORRECTO)",
+                "color": "red",
+                "codigo": codigo_ticket,
+                "evento": evento.nombre if evento else "Desconocido"
+            }
+        # =================================================================================
+
     # Buscar ticket por código (case insensitive)
     ticket = db.query(models.Ticket).filter(
         models.Ticket.codigo_ticket.ilike(codigo_ticket.strip())
@@ -500,59 +541,31 @@ def scan_ticket(
     
     if not ticket:
         return {
+            "success": False,
             "status": "error",
             "message": "TICKET NO ENCONTRADO",
             "color": "red",
-            "codigo": codigo_ticket
-        }
-    
-    # Obtener información del evento
-    evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
-    
-    # =================================================================================
-    # VERIFICACIÓN DE PERMISOS (TEAMS)
-    # =================================================================================
-    is_authorized = False
-    
-    # 1. Admin Global
-    if current_user.role == 'admin':
-        is_authorized = True
-        
-    # 2. Creador del Evento (Owner/Promotor)
-    elif evento and evento.creador_id == current_user.id:
-        is_authorized = True
-        
-    # 3. Miembro de Equipo (Scanner)
-    elif evento:
-        # Verificar si el usuario activo pertenece a algún equipo liderado por el creador del evento
-        membership = db.query(models.TeamMember).join(models.Team).filter(
-            models.TeamMember.user_id == current_user.id,
-            models.TeamMember.status == 'accepted',
-            models.Team.leader_id == evento.creador_id
-        ).first()
-        
-        if membership:
-            is_authorized = True
-            
-    if not is_authorized:
-        return {
-            "status": "error",
-            "message": "NO AUTORIZADO (EQUIPO INCORRECTO)",
-            "color": "red",
             "codigo": codigo_ticket,
-            "evento": evento.nombre if evento else "Desconocido"
+            "ticket": None
         }
-    # =================================================================================
-
+    
+    # Obtener información del evento (si no se obtuvo antes por team check)
+    if not evento:
+        evento = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
+    
     # Verificar si ya fue usado
     if not ticket.activado:
         return {
+            "success": False,
             "status": "error",
             "message": "ENTRADA YA UTILIZADA",
             "color": "red",
             "codigo": codigo_ticket,
             "nombre_asistente": ticket.nombre_asistente,
-            "evento": evento.nombre if evento else "Desconocido"
+            "evento": evento.nombre if evento else "Desconocido",
+            "user_name": ticket.nombre_asistente, # Mobile compatibility
+            "event_name": evento.nombre if evento else "Desconocido", # Mobile compatibility
+            "ticket_id": ticket.id
         }
     
     # Ticket válido - marcarlo como usado
@@ -568,7 +581,8 @@ def scan_ticket(
         "codigo": codigo_ticket,
         "user_name": ticket.nombre_asistente,
         "event_name": evento.nombre if evento else "Desconocido",
-        "ticket_id": ticket.id
+        "ticket_id": ticket.id,
+        "ticket": {"id": ticket.id, "activado": False} # Basic ticket info for mobile
     }
 
 @app.post("/scanner/activate-ticket/{ticket_id}", tags=["Tickets"])
