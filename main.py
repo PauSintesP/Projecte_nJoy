@@ -380,9 +380,9 @@ def purchase_tickets(
             nombres_asistentes.append(buyer_name)
     
     def generate_ticket_code():
-        """Generate unique 10-digit alphanumeric ticket code"""
+        """Generate unique 6-digit alphanumeric ticket code (User Request: Short codes)"""
         while True:
-            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=10))
+            code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
             if not db.query(models.Ticket).filter(models.Ticket.codigo_ticket == code).first():
                 return code
     
