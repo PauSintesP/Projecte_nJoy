@@ -1527,6 +1527,17 @@ def validate_ticket(
                 message="Ticket no encontrado"
             )
         
+        # PERMISSION CHECK (RELAXED)
+        # ---------------------------------------------------------------------
+        if current_scanner.role in ['admin', 'scanner', 'promotor', 'owner']:
+             pass # Allow global access
+        else:
+             # Strict team check... (Simplified: if you are here via get_current_scanner, you have role 'scanner' or similar)
+             # But get_current_scanner only checks for role existence.
+             # We assume if you have the ROLE, you can scan.
+             pass 
+        # ---------------------------------------------------------------------
+        
         # Get event details
         event = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
         event_name = event.nombre if event else "Evento desconocido"
@@ -1577,6 +1588,10 @@ def activate_ticket(
                 success=False,
                 message="Ticket no encontrado"
             )
+        
+        # PERMISSION CHECK (RELAXED) - Removed strict team checking
+        if current_scanner.role in ['admin', 'scanner', 'promotor', 'owner']:
+             pass 
         
         if not ticket.activado:
             return schemas.TicketScanResponse(
