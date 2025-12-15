@@ -1938,7 +1938,7 @@ def drop_and_recreate_db():
         print("DEBUG: Database tables created successfully")
         
         return {
-            "message": "⚠️ TODAS las tablas fueron eliminadas y recreadas",
+            "message": "TODAS las tablas fueron eliminadas y recreadas",
             "warning": "TODOS LOS DATOS FUERON ELIMINADOS",
             "tables": [table.name for table in models.Base.metadata.sorted_tables]
         }
