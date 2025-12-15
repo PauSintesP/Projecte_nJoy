@@ -1924,8 +1924,7 @@ def seed_test_data(db: Session = Depends(get_db)):
 @app.get("/drop-and-recreate-db")
 def drop_and_recreate_db():
     """
-    ⚠️ PELIGRO: Elimina TODAS las tablas y las recrea.
->>>>>>> Stashed changes
+    PELIGRO: Elimina TODAS las tablas y las recrea.
     Esto BORRARÁ TODOS LOS DATOS.
     Solo usar en desarrollo.
     """
