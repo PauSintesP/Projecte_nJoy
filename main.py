@@ -47,59 +47,35 @@ API RESTful completa para la gestión de eventos, artistas, tickets y pagos.
 * 💳 **Procesamiento de pagos** - Registro de transacciones
 * 🏢 **Organizadores** - Gestión de promotores de eventos
 * 📍 **Localidades** - Gestión de ubicaciones y recintos
-
-### Seguridad
-
-Todos los endpoints (excepto `/register`, `/login`, `/health` y `/`) requieren autenticación mediante Bearer token.
-
-Para autenticarte:
-1. Registra un usuario en `/register`
-2. Obtén tokens en `/login`
-3. Incluye el header: `Authorization: Bearer <access_token>`
-
-### Soporte
-
-Para más información, consulta la documentación completa o contacta con el equipo de desarrollo.
-    """,
-    contact={
-        "name": "nJoy Development Team",
-        "email": "support@njoy.com",
-        "url": "https://njoy.com/support"
-    },
-    license_info={
-        "name": "MIT License",
-        "url": "https://opensource.org/licenses/MIT"
-    },
-    docs_url="/docs",
-    redoc_url="/redoc",
+    description="API REST para gestión de eventos, tickets y usuarios",
     openapi_tags=[
         {
             "name": "Authentication",
-            "description": "Operaciones de autenticación y gestión de tokens. Estos endpoints son **públicos**."
+            "description": "Operaciones de autenticación y registro de usuarios"
         },
         {
             "name": "Users",
-            "description": "Gestión de usuarios registrados. Requiere autenticación."
+            "description": "Gestión de usuarios. Requiere autenticación."
         },
         {
             "name": "Events",
-            "description": "CRUD completo para eventos musicales. Requiere autenticación."
+            "description": "Gestión de eventos musicales. Algunos endpoints requieren autenticación."
         },
         {
             "name": "Tickets",
-            "description": "Gestión de tickets de eventos. Los usuarios solo pueden gestionar sus propios tickets."
+            "description": "Compra y gestión de tickets. Requiere autenticación."
         },
         {
-            "name": "Payments",
-            "description": "Registro y consulta de pagos. Los usuarios solo pueden ver sus propios pagos."
+            "name": "Teams",
+            "description": "Gestión de equipos para eventos. Requiere autenticación."
+        },
+        {
+            "name": "Admin",
+            "description": "Panel de administración. Requiere rol de administrador."
         },
         {
             "name": "Artists",
             "description": "Gestión de artistas musicales. Requiere autenticación."
-        },
-        {
-            "name": "Genres",
-            "description": "Gestión de géneros musicales. Requiere autenticación."
         },
         {
             "name": "Organizers",
@@ -108,13 +84,6 @@ Para más información, consulta la documentación completa o contacta con el eq
         {
             "name": "Locations",
             "description": "Gestión de localidades y ciudades. Requiere autenticación."
-        },
-        {
-            "name": "Admin",
-            "description": "Panel de administración. Solo accesible para usuarios con rol admin. Permite gestionar usuarios, roles y baneos."
-        },
-        {
-            "name": "Health",
             "description": "Endpoints de monitoreo y estado del servicio. Públicos."
         }
     ]
