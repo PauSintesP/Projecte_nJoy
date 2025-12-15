@@ -47,35 +47,59 @@ API RESTful completa para la gestión de eventos, artistas, tickets y pagos.
 * 💳 **Procesamiento de pagos** - Registro de transacciones
 * 🏢 **Organizadores** - Gestión de promotores de eventos
 * 📍 **Localidades** - Gestión de ubicaciones y recintos
-    description="API REST para gestión de eventos, tickets y usuarios",
+
+### Seguridad
+
+Todos los endpoints (excepto `/register`, `/login`, `/health` y `/`) requieren autenticación mediante Bearer token.
+
+Para autenticarte:
+1. Registra un usuario en `/register`
+2. Obtén tokens en `/login`
+3. Incluye el header: `Authorization: Bearer <access_token>`
+
+### Soporte
+
+Para más información, consulta la documentación completa o contacta con el equipo de desarrollo.
+    """,
+    contact={
+        "name": "nJoy Development Team",
+        "email": "support@njoy.com",
+        "url": "https://njoy.com/support"
+    },
+    license_info={
+        "name": "MIT License",
+        "url": "https://opensource.org/licenses/MIT"
+    },
+    docs_url="/docs",
+    redoc_url="/redoc",
     openapi_tags=[
         {
             "name": "Authentication",
-            "description": "Operaciones de autenticación y registro de usuarios"
+            "description": "Operaciones de autenticación y gestión de tokens. Estos endpoints son **públicos**."
         },
         {
             "name": "Users",
-            "description": "Gestión de usuarios. Requiere autenticación."
+            "description": "Gestión de usuarios registrados. Requiere autenticación."
         },
         {
             "name": "Events",
-            "description": "Gestión de eventos musicales. Algunos endpoints requieren autenticación."
+            "description": "CRUD completo para eventos musicales. Requiere autenticación."
         },
         {
             "name": "Tickets",
-            "description": "Compra y gestión de tickets. Requiere autenticación."
+            "description": "Gestión de tickets de eventos. Los usuarios solo pueden gestionar sus propios tickets."
         },
         {
-            "name": "Teams",
-            "description": "Gestión de equipos para eventos. Requiere autenticación."
-        },
-        {
-            "name": "Admin",
-            "description": "Panel de administración. Requiere rol de administrador."
+            "name": "Payments",
+            "description": "Registro y consulta de pagos. Los usuarios solo pueden ver sus propios pagos."
         },
         {
             "name": "Artists",
             "description": "Gestión de artistas musicales. Requiere autenticación."
+        },
+        {
+            "name": "Genres",
+            "description": "Gestión de géneros musicales. Requiere autenticación."
         },
         {
             "name": "Organizers",
@@ -84,6 +108,13 @@ API RESTful completa para la gestión de eventos, artistas, tickets y pagos.
         {
             "name": "Locations",
             "description": "Gestión de localidades y ciudades. Requiere autenticación."
+        },
+        {
+            "name": "Admin",
+            "description": "Panel de administración. Solo accesible para usuarios con rol admin. Permite gestionar usuarios, roles y baneos."
+        },
+        {
+            "name": "Health",
             "description": "Endpoints de monitoreo y estado del servicio. Públicos."
         }
     ]
@@ -168,15 +199,28 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
     - Username debe ser único
     """
     try:
+        print(f"DEBUG: Received user data: {user.model_dump()}")
         new_user = crud.create_item(db, models.Usuario, user)
+        print(f"DEBUG: User created successfully with ID: {new_user.id}")
         return new_user
     except HTTPException as e:
+        print(f"DEBUG: HTTPException raised: {e.status_code} - {e.detail}")
         raise e
     except Exception as e:
-        # Return simplified error for security
+        print(f"DEBUG: Unexpected exception: {type(e).__name__}: {str(e)}")
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"DEBUG: Full traceback:\n{error_trace}")
+        
+        # Return more detailed error for debugging
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error al crear usuario"
+            detail={
+                "message": "Error al crear usuario",
+                "error_type": type(e).__name__,
+                "error_details": str(e),
+                "trace": error_trace.split('\n')[-3:] if error_trace else []
+            }
         )
 
 @app.post("/login", response_model=schemas.Token, tags=["Authentication"])
@@ -1805,7 +1849,7 @@ def init_db():
     """
     Endpoint para inicializar las tablas de la base de datos.
     Útil para despliegues en Vercel donde no tenemos acceso a consola.
-    ADVERTENCIA: Esto CREARÁ las tablas si no existen.
+    ⚠️ ADVERTENCIA: Esto CREARÁ las tablas si no existen.
     """
     try:
         print("DEBUG: Creating database tables...")
@@ -1924,7 +1968,8 @@ def seed_test_data(db: Session = Depends(get_db)):
 @app.get("/drop-and-recreate-db")
 def drop_and_recreate_db():
     """
-    PELIGRO: Elimina TODAS las tablas y las recrea.
+    ⚠️ PELIGRO: Elimina TODAS las tablas y las recrea.
+>>>>>>> Stashed changes
     Esto BORRARÁ TODOS LOS DATOS.
     Solo usar en desarrollo.
     """
@@ -1938,7 +1983,7 @@ def drop_and_recreate_db():
         print("DEBUG: Database tables created successfully")
         
         return {
-            "message": "TODAS las tablas fueron eliminadas y recreadas",
+            "message": "⚠️ TODAS las tablas fueron eliminadas y recreadas",
             "warning": "TODOS LOS DATOS FUERON ELIMINADOS",
             "tables": [table.name for table in models.Base.metadata.sorted_tables]
         }

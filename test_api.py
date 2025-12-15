@@ -44,7 +44,7 @@ def test_api():
     print_response(response, "Registro de Usuario")
     
     if response.status_code == 400 and "ya está registrado" in response.text:
-        print("⚠️  Usuario ya existe, continuando con login...")
+        print("Usuario ya existe, continuando con login...")
     else:
         assert response.status_code == 201, "Registro falló"
     
