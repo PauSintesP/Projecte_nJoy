@@ -2017,6 +2017,52 @@ def get_recent_tickets_debug(db: Session = Depends(get_db)):
     except Exception as e:
         return {"error": str(e)}
 
+@app.post("/admin/migrate-ticket-codes", tags=["Admin"])
+def migrate_ticket_codes(
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    ADMIN ONLY: Migrate tickets with NULL or UUID codigo_ticket to 6-char codes
+    """
+    if current_user.role != 'admin':
+        raise HTTPException(status_code=403, detail="Admin access required")
+    
+    try:
+        # Find tickets with NULL or UUID-format codes
+        tickets_to_migrate = db.query(models.Ticket).filter(
+            (models.Ticket.codigo_ticket == None) | 
+            (models.Ticket.codigo_ticket.like('%-%'))  # UUID format contains dashes
+        ).all()
+        
+        migrated_count = 0
+        skipped_count = 0
+        
+        for ticket in tickets_to_migrate:
+            # Generate unique 6-char code
+            while True:
+                new_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                # Check if code is unique
+                existing = db.query(models.Ticket).filter(
+                    models.Ticket.codigo_ticket == new_code
+                ).first()
+                if not existing:
+                    ticket.codigo_ticket = new_code
+                    migrated_count += 1
+                    break
+        
+        db.commit()
+        
+        return {
+            "success": True,
+            "migrated": migrated_count,
+            "total_found": len(tickets_to_migrate),
+            "message": f"Successfully migrated {migrated_count} tickets to 6-character codes"
+        }
+    except Exception as e:
+        db.rollback()
+        return {"success": False, "error": str(e)}
+
 @app.get("/test-deployment-nov24")
 def test_deployment():
     """Test endpoint to verify deployment is working - November 24 2025"""
