@@ -1805,7 +1805,7 @@ def init_db():
     """
     Endpoint para inicializar las tablas de la base de datos.
     Útil para despliegues en Vercel donde no tenemos acceso a consola.
-    ⚠️ ADVERTENCIA: Esto CREARÁ las tablas si no existen.
+    ADVERTENCIA: Esto CREARÁ las tablas si no existen.
     """
     try:
         print("DEBUG: Creating database tables...")
