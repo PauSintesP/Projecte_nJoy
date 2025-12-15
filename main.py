@@ -1987,15 +1987,35 @@ def seed_db(db: Session = Depends(get_db)):
             detail=f"Error al poblar la base de datos: {str(e)}"
         )
 
-@app.get("/")
-def root():
-    """Endpoint raíz con información de la API"""
+@app.get("/", tags=["Root"])
+def read_root():
+    """health check"""
     return {
-        "app": settings.APP_NAME,
-        "version": settings.APP_VERSION,
-        "docs": "/docs",
-        "redoc": "/redoc"
+        "message": "Welcome to nJoy API",
+        "status": "online",
+        "docs": "/docs"
     }
+
+@app.get("/debug/recent-tickets", tags=["Debug"])
+def get_recent_tickets_debug(db: Session = Depends(get_db)):
+    """
+    TEMPORARY DEBUG ENDPOINT - Shows last 10 tickets in database
+    Used to verify QR code data in production
+    """
+    try:
+        tickets = db.query(models.Ticket).order_by(models.Ticket.id.desc()).limit(10).all()
+        results = []
+        for t in tickets:
+            results.append({
+                "id": t.id,
+                "codigo_ticket": t.codigo_ticket,
+                "evento_id": t.evento_id,
+                "activado": t.activado,
+                "nombre_asistente": t.nombre_asistente
+            })
+        return {"count": len(results), "tickets": results}
+    except Exception as e:
+        return {"error": str(e)}
 
 @app.get("/test-deployment-nov24")
 def test_deployment():
