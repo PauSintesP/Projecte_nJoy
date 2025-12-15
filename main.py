@@ -199,28 +199,15 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
     - Username debe ser único
     """
     try:
-        print(f"DEBUG: Received user data: {user.model_dump()}")
         new_user = crud.create_item(db, models.Usuario, user)
-        print(f"DEBUG: User created successfully with ID: {new_user.id}")
         return new_user
     except HTTPException as e:
-        print(f"DEBUG: HTTPException raised: {e.status_code} - {e.detail}")
         raise e
     except Exception as e:
-        print(f"DEBUG: Unexpected exception: {type(e).__name__}: {str(e)}")
-        import traceback
-        error_trace = traceback.format_exc()
-        print(f"DEBUG: Full traceback:\n{error_trace}")
-        
-        # Return more detailed error for debugging
+        # Return simplified error for security
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail={
-                "message": "Error al crear usuario",
-                "error_type": type(e).__name__,
-                "error_details": str(e),
-                "trace": error_trace.split('\n')[-3:] if error_trace else []
-            }
+            detail="Error al crear usuario"
         )
 
 @app.post("/login", response_model=schemas.Token, tags=["Authentication"])
