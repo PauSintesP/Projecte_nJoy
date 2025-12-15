@@ -797,6 +797,34 @@ def delete_organizador(
     db.commit()
     return {"detail": "Organizador eliminado correctamente"}
 
+@app.delete("/evento/{item_id}", tags=["Events"])
+def delete_evento(
+    item_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """Eliminar un evento (requiere autenticación)"""
+    evento = db.query(models.Evento).filter(models.Evento.id == item_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    try:
+        # Delete associated tickets first to avoid foreign key constraint error
+        tickets_to_delete = db.query(models.Ticket).filter(models.Ticket.evento_id == item_id).all()
+        for ticket in tickets_to_delete:
+            db.delete(ticket)
+        
+        # Now delete the event
+        db.delete(evento)
+        db.commit()
+        return {"message": "Evento y tickets asociados eliminados correctamente"}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error al eliminar evento: {str(e)}"
+        )
+
 # ============================================
 # ENDPOINTS DE GÉNERO (PROTEGIDOS)
 # ============================================
