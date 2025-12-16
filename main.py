@@ -204,28 +204,30 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
         new_user = crud.create_item(db, models.Usuario, user)
         print(f"DEBUG: User created successfully with ID: {new_user.id}")
         
+        # EMAIL VERIFICATION TEMPORARILY DISABLED
+        # TODO: Re-enable after installing resend in production
         # Generate verification token and send email
-        import secrets
-        from datetime import datetime, timedelta
-        from email_service import EmailService
+        # import secrets
+        # from datetime import datetime, timedelta
+        # from email_service import EmailService
         
-        # Generate unique token
-        verification_token = secrets.token_urlsafe(32)
-        new_user.verification_token = verification_token
-        new_user.verification_token_expiry = datetime.now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRY_HOURS)
-        db.commit()
+        # # Generate unique token
+        # verification_token = secrets.token_urlsafe(32)
+        # new_user.verification_token = verification_token
+        # new_user.verification_token_expiry = datetime.now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRY_HOURS)
+        # db.commit()
         
-        # Send verification email
-        try:
-            EmailService.send_verification_email(
-                to_email=new_user.email,
-                user_name=new_user.nombre,
-                verification_token=verification_token
-            )
-            print(f"✓ Verification email sent to {new_user.email}")
-        except Exception as email_error:
-            print(f"⚠️  Failed to send verification email: {email_error}")
-            # Don't fail registration if email fails, user can resend later
+        # # Send verification email
+        # try:
+        #     EmailService.send_verification_email(
+        #         to_email=new_user.email,
+        #         user_name=new_user.nombre,
+        #         verification_token=verification_token
+        #     )
+        #     print(f"✓ Verification email sent to {new_user.email}")
+        # except Exception as email_error:
+        #     print(f"⚠️  Failed to send verification email: {email_error}")
+        #     # Don't fail registration if email fails, user can resend later
         
         return new_user
     except HTTPException as e:
