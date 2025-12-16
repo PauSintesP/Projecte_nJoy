@@ -43,6 +43,11 @@ class Usuario(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     is_banned = Column(Boolean, default=False, nullable=False)  # Sistema de baneo
     created_at = Column(DateTime, default=datetime.now, nullable=False)
+    
+    # Email verification fields
+    email_verified = Column(Boolean, default=False, nullable=False)
+    verification_token = Column(String(255), nullable=True)
+    verification_token_expiry = Column(DateTime, nullable=True)
 
 class Evento(Base):
     __tablename__ = 'EVENTO'
@@ -68,6 +73,7 @@ class Ticket(Base):
     evento_id = Column(Integer, ForeignKey('EVENTO.id'))
     usuario_id = Column(Integer, ForeignKey('USUARIO.id'))
     activado = Column(Boolean, default=True)
+    scanned_at = Column(DateTime, nullable=True)  # Timestamp when ticket was scanned
 
 class Pago(Base):
     __tablename__ = 'PAGO'

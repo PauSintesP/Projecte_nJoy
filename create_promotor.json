@@ -1,0 +1,9 @@
+{
+    "nombre": "Test",
+    "apellidos": "Promotor",
+    "email": "promotor@test.com",
+    "password": "test123",
+    "fecha_nacimiento": "1990-01-01",
+    "pais": "España",
+    "role": "promotor"
+}

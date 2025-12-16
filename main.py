@@ -197,11 +197,36 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
     - Password se hashea automáticamente
     - Email debe ser único
     - Username debe ser único
+    - Envía email de verificación automáticamente
     """
     try:
         print(f"DEBUG: Received user data: {user.model_dump()}")
         new_user = crud.create_item(db, models.Usuario, user)
         print(f"DEBUG: User created successfully with ID: {new_user.id}")
+        
+        # Generate verification token and send email
+        import secrets
+        from datetime import datetime, timedelta
+        from email_service import EmailService
+        
+        # Generate unique token
+        verification_token = secrets.token_urlsafe(32)
+        new_user.verification_token = verification_token
+        new_user.verification_token_expiry = datetime.now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRY_HOURS)
+        db.commit()
+        
+        # Send verification email
+        try:
+            EmailService.send_verification_email(
+                to_email=new_user.email,
+                user_name=new_user.nombre,
+                verification_token=verification_token
+            )
+            print(f"✓ Verification email sent to {new_user.email}")
+        except Exception as email_error:
+            print(f"⚠️  Failed to send verification email: {email_error}")
+            # Don't fail registration if email fails, user can resend later
+        
         return new_user
     except HTTPException as e:
         print(f"DEBUG: HTTPException raised: {e.status_code} - {e.detail}")
@@ -299,6 +324,116 @@ def refresh_token(token_request: schemas.RefreshTokenRequest, db: Session = Depe
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token inválido o expirado"
         )
+
+# ============================================
+# EMAIL VERIFICATION ENDPOINTS (PÚBLI COS)
+# ============================================
+
+@app.get("/verify-email/{token}", response_model=dict, tags=["Authentication"])
+def verify_email(token: str, db: Session = Depends(get_db)):
+    """
+    Verificar email usando token del enlace
+    - Marca el email como verificado
+    - Token de un solo uso (se borra después de usarse)
+    """
+    from datetime import datetime
+    
+    # Find user by verification token
+    user = db.query(models.Usuario).filter(
+        models.Usuario.verification_token == token
+    ).first()
+    
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Token de verificación inválido"
+        )
+    
+    # Check if already verified
+    if user.email_verified:
+        return {
+            "success": True,
+            "message": "Email ya estaba verificado",
+            "email": user.email
+        }
+    
+    # Check if token expired
+    if user.verification_token_expiry < datetime.now():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Token de verificación expirado. Solicita uno nuevo."
+        )
+    
+    # Verify email
+    user.email_verified = True
+    user.verification_token = None  # Invalidate token after use
+    user.verification_token_expiry = None
+    db.commit()
+    
+    return {
+        "success": True,
+        "message": "¡Email verificado correctamente!",
+        "email": user.email
+    }
+
+@app.post("/resend-verification", response_model=dict, tags=["Authentication"])
+def resend_verification(email_request: dict, db: Session = Depends(get_db)):
+    """
+    Reenviar email de verificación
+    - Genera nuevo token
+    - Envía nuevo email
+    """
+    import secrets
+    from datetime import datetime, timedelta
+    from email_service import EmailService
+    
+    email = email_request.get("email", "").lower().strip()
+    
+    if not email:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email requerido"
+        )
+    
+    user = db.query(models.Usuario).filter(models.Usuario.email == email).first()
+    
+    if not user:
+        # Don't reveal if email exists or not (security)
+        return {
+            "success": True,
+            "message": "Si el email existe, recibirás un correo de verificación"
+        }
+    
+    if user.email_verified:
+        return {
+            "success": True,
+            "message": "Email ya está verificado"
+        }
+    
+    # Generate new token
+    verification_token = secrets.token_urlsafe(32)
+    user.verification_token = verification_token
+    user.verification_token_expiry = datetime.now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRY_HOURS)
+    db.commit()
+    
+    # Send email
+    try:
+        EmailService.send_verification_email(
+            to_email=user.email,
+            user_name=user.nombre,
+            verification_token=verification_token
+        )
+    except Exception as e:
+        print(f"Error sending verification email: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error al enviar email"
+        )
+    
+    return {
+        "success": True,
+        "message": "Email de verificación enviado"
+    }
 
 @app.get("/me", response_model=schemas.Usuario, tags=["Users"])
 def get_current_user_info(current_user: models.Usuario = Depends(get_current_active_user)):
@@ -589,8 +724,11 @@ def scan_ticket(
             "ticket_id": ticket.id
         }
     
-    # Ticket válido - marcarlo como usado
+    
+    # Ticket válido - marcarlo como usado y guardar timestamp
+    from datetime import datetime
     ticket.activado = False
+    ticket.scanned_at = datetime.now()  # Track scan time for hourly stats
     db.commit()
     db.refresh(ticket)
     
@@ -2090,6 +2228,210 @@ def migrate_ticket_codes(
     except Exception as e:
         db.rollback()
         return {"success": False, "error": str(e)}
+
+# ============================================
+# EVENT STATISTICS ENDPOINTS
+# ============================================
+
+import estadisticas_schemas
+from datetime import datetime
+
+@app.post("/evento/{evento_id}/verificar-acceso-estadisticas", tags=["Events"])
+def verify_stats_access(
+    evento_id: int,
+    verification: estadisticas_schemas.PasswordVerificationRequest,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Verify user password and ownership to grant temporary access to event statistics
+    
+    Security:
+    - User must be the creator of the event (strict ownership)
+    - Password must be correct
+    - Returns temporary JWT token valid for 5 minutes
+    """
+    # 1. Verify event exists
+    evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    # 2. Verify ownership (STRICT - Only creator can see stats)
+    if evento.creador_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="No tienes permiso para ver las estadísticas de este evento"
+        )
+    
+    # 3. Verify password
+    user = authenticate_user(db, current_user.email, verification.password)
+    if not user:
+        raise HTTPException(
+            status_code=401,
+            detail="Contraseña incorrecta"
+        )
+    
+    # 4. Generate temporary stats token (5 minutes expiration)
+    stats_token = create_access_token(
+        data={"sub": str(user.id), "evento_id": evento_id, "type": "stats"},
+        expires_delta=timedelta(minutes=5)
+    )
+    
+    return estadisticas_schemas.StatsAccessTokenResponse(
+        access_token=stats_token,
+        expires_in=300,  # 5 minutes in seconds
+        token_type="bearer"
+    )
+
+
+@app.get("/evento/{evento_id}/estadisticas", tags=["Events"])
+def get_event_statistics(
+    evento_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Get comprehensive event statistics with hourly breakdown
+    
+    Returns:
+    - Financial metrics (total revenue, average ticket price)
+    - Capacity metrics (sold, available)
+    - Attendance metrics (scanned tickets, attendance rate)
+    - Hourly entry breakdown for analysis
+    
+    Security:
+    - Only event creator can access (strict ownership)
+    - No admin override (privacy guaranteed)
+    """
+    # 1. Verify event exists
+    evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    # 2. STRICT ownership check - Only creator
+    if evento.creador_id != current_user.id:
+        raise HTTPException(
+            status_code=403,
+            detail="Solo el creador del evento puede ver estas estadísticas"
+        )
+    
+    # 3. Calculate statistics
+    # Total tickets sold
+    total_tickets = db.query(models.Ticket).filter(
+        models.Ticket.evento_id == evento_id
+    ).count()
+    
+    # Scanned tickets (attended)
+    scanned_tickets = db.query(models.Ticket).filter(
+        models.Ticket.evento_id == evento_id,
+        models.Ticket.activado == False  # False means it was scanned
+    ).count()
+    
+    # Financial calculations
+    precio = evento.precio if evento.precio else 0
+    ingreso_total = total_tickets * precio
+    ingreso_promedio = precio if total_tickets > 0 else 0
+    
+    # Capacity calculations
+    capacidad_total = evento.plazas
+    tickets_disponibles = capacidad_total - total_tickets
+    
+    # Attendance rate
+    tasa_asistencia = (scanned_tickets / total_tickets * 100) if total_tickets > 0 else 0
+    
+    # 4. Get all scanned tickets with timestamps (needed for time range and hourly breakdown)
+    tickets_escaneados_list = db.query(models.Ticket).filter(
+        models.Ticket.evento_id == evento_id,
+        models.Ticket.scanned_at != None
+    ).all()
+    
+    # 5. Calculate time range for charts (from first scan to current hour + 1)
+    from datetime import datetime
+    now = datetime.now()
+    current_hour = now.hour
+    event_hour = evento.fechayhora.hour
+    
+    # Find the range: from first scan (or event start) to current hour + 1
+    if tickets_escaneados_list:
+        first_scan_hour = min(t.scanned_at.hour for t in tickets_escaneados_list)
+        last_scan_hour = max(t.scanned_at.hour for t in tickets_escaneados_list)
+        
+        # Start from the earlier of: event hour or first scan
+        start_hour = min(event_hour, first_scan_hour)
+        
+        # End at the later of: current hour + 1 or last scan
+        end_hour = max(current_hour + 1, last_scan_hour)
+        end_hour = min(23, end_hour)  # Don't exceed 23:00
+    else:
+        # No scans yet, show event hour ± 2
+        start_hour = max(0, event_hour - 2)
+        end_hour = min(23, current_hour + 1)
+    
+    # 6. Hourly breakdown - Group by hour
+    hourly_stats_dict = {}
+    max_hour_count = 0
+    peak_hour = None
+    
+    for ticket in tickets_escaneados_list:
+        hour = ticket.scanned_at.hour
+        if hour not in hourly_stats_dict:
+            hourly_stats_dict[hour] = 0
+        hourly_stats_dict[hour] += 1
+        
+        if hourly_stats_dict[hour] > max_hour_count:
+            max_hour_count = hourly_stats_dict[hour]
+            peak_hour = f"{hour:02d}:00"
+    
+    # Build hourly entries (only hours with data for bar chart)
+    entradas_por_hora = []
+    for hour in range(start_hour, end_hour + 1):
+        count = hourly_stats_dict.get(hour, 0)
+        if count > 0:
+            entradas_por_hora.append(
+                estadisticas_schemas.HourlyEntryStats(
+                    hour=hour,
+                    count=count,
+                    hour_label=f"{hour:02d}:00"
+                )
+            )
+    
+    # 7. Temporal Flow (cumulative entries over time)
+    # Build cumulative flow data using the same time range
+    flujo_temporal = []
+    cumulative = 0
+    
+    for hour in range(start_hour, end_hour + 1):
+        count = hourly_stats_dict.get(hour, 0)
+        cumulative += count
+        
+        flujo_temporal.append(
+            estadisticas_schemas.TemporalFlowPoint(
+                hour=hour,
+                count=count,
+                cumulative=cumulative,
+                hour_label=f"{hour:02d}:00"
+            )
+        )
+    
+    # 8. Build response
+    response = estadisticas_schemas.EventStatsResponse(
+        ingreso_total=ingreso_total,
+        ingreso_promedio_ticket=ingreso_promedio,
+        capacidad_total=capacidad_total,
+        tickets_vendidos=total_tickets,
+        tickets_disponibles=tickets_disponibles,
+        tickets_escaneados=scanned_tickets,
+        tasa_asistencia=tasa_asistencia,
+        entradas_por_hora=entradas_por_hora,
+        hora_pico=peak_hour,
+        max_entradas_hora=max_hour_count,
+        flujo_temporal=flujo_temporal,
+        hora_evento=event_hour
+    )
+    
+    return response
+
+
 
 @app.get("/test-deployment-nov24")
 def test_deployment():

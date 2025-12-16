@@ -45,9 +45,17 @@ class Settings:
         ).split(",")
     ]
     
+    
     # Configuración de la aplicación
     APP_NAME: str = "nJoy API"
     APP_VERSION: str = "2.0.0"
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+    
+    # Email Configuration (Resend)
+    RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
+    EMAIL_FROM: str = os.getenv("EMAIL_FROM", "onboarding@resend.dev")
+    EMAIL_FROM_NAME: str = os.getenv("EMAIL_FROM_NAME", "nJoy")
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:5173")
+    VERIFICATION_TOKEN_EXPIRY_HOURS: int = int(os.getenv("VERIFICATION_TOKEN_EXPIRY_HOURS", "24"))
 
 settings = Settings()
