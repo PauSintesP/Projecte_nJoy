@@ -122,23 +122,19 @@ Para más información, consulta la documentación completa o contacta con el eq
 
 
 
-# CORS Configuration - Multiple layers for Vercel compatibility
-# CORS Configuration - Multiple layers for Vercel compatibility
-# Layer 1: FastAPI's built-in CORS middleware
-origins = [
-    "http://localhost:5173",
-    "http://127.0.0.1:5173",
-    "http://localhost:3000",
-    "https://njoy-web.vercel.app" 
-]
+# ============================================
+# CORS CONFIGURATION - SECURITY LAYER 1
+# ============================================
+# STRICT CORS: Only allow requests from explicitly authorized origins
+# Mobile apps are not affected by CORS (native HTTP requests)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
-    allow_origin_regex="https://.*\.vercel\.app",  # Permitir cualquier subdominio de Vercel (previews)
+    allow_origins=settings.ALLOWED_ORIGINS,  # Use explicit list from environment config
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"]
 )
 
 # --- ROTERS REGISTRATION ---
@@ -151,23 +147,56 @@ app.include_router(admin_endpoints.router)
 # Crear tablas en la base de datos (Post-app creation safe check)
 models.Base.metadata.create_all(bind=engine)
 
-# Layer 2: Custom middleware to FORCE CORS headers (fallback for Vercel)
-# IMPORTANT: When allow_credentials is True, allow_origin cannot be *
+# ============================================
+# CORS CONFIGURATION - SECURITY LAYER 2
+# ============================================
+# Custom middleware for strict origin validation
 @app.middleware("http")
-async def add_cors_headers(request, call_next):
+async def validate_origin_middleware(request, call_next):
     """
-    Middleware personalizado que GARANTIZA que los headers CORS estén presentes
-    y sean correctos para solicitudes con credenciales.
+    STRICT ORIGIN VALIDATION MIDDLEWARE
+    
+    - Rejects requests from unauthorized origins with 403 Forbidden
+    - Allows requests without Origin header (native mobile apps, direct API calls)
+    - Enforces ALLOWED_ORIGINS from environment configuration
     """
+    from fastapi.responses import JSONResponse
+    
     origin = request.headers.get("origin")
     
-    # Handle OPTIONS requests (preflight) explicitly
+    # If Origin header is present (browser request), validate it
+    if origin:
+        # Check if origin is in allowed list
+        is_allowed = origin in settings.ALLOWED_ORIGINS
+        
+        if not is_allowed:
+            # LOG SECURITY EVENT
+            print(f"🚫 BLOCKED REQUEST from unauthorized origin: {origin}")
+            print(f"   Path: {request.url.path}")
+            print(f"   Method: {request.method}")
+            
+            # Return 403 Forbidden for unauthorized origins
+            return JSONResponse(
+                status_code=403,
+                content={
+                    "detail": "Origin not allowed",
+                    "error": "CORS policy: This origin is not authorized to access this API"
+                },
+                headers={
+                    "Access-Control-Allow-Origin": origin,  # Required for browser to show error
+                }
+            )
+    
+    # Handle OPTIONS preflight requests
     if request.method == "OPTIONS":
         from fastapi.responses import Response
+        # Only return success if origin is allowed (or no origin header)
+        allowed_origin = origin if (not origin or origin in settings.ALLOWED_ORIGINS) else settings.ALLOWED_ORIGINS[0]
+        
         return Response(
             status_code=200,
             headers={
-                "Access-Control-Allow-Origin": origin if origin else "*",
+                "Access-Control-Allow-Origin": allowed_origin,
                 "Access-Control-Allow-Methods": "*",
                 "Access-Control-Allow-Headers": "*",
                 "Access-Control-Allow-Credentials": "true",
@@ -175,14 +204,17 @@ async def add_cors_headers(request, call_next):
             }
         )
     
+    # Process request
     response = await call_next(request)
     
-    # Forzar headers CORS en TODAS las responses
-    # Si hay origin, lo usamos para permitir credenciales. Si no, fallback a *
-    response.headers["Access-Control-Allow-Origin"] = origin if origin else "*"
-    response.headers["Access-Control-Allow-Methods"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "*"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
+    # Add CORS headers to response (only for allowed origins)
+    if origin and origin in settings.ALLOWED_ORIGINS:
+        response.headers["Access-Control-Allow-Origin"] = origin
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    elif not origin:
+        # No origin header (mobile app, server-to-server, etc.)
+        # Don't add CORS headers - not needed for native requests
+        pass
     
     return response
 

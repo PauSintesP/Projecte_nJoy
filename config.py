@@ -35,13 +35,14 @@ class Settings:
     
     DATABASE_URL: str = _db_url
     
-    # CORS - Dominios permitidos
-    # CORS - Dominios permitidos
+    # CORS - Dominios permitidos (SEGURIDAD)
+    # Solo dominios explícitamente autorizados pueden acceder a la API desde navegadores
+    # Las apps móviles nativas NO están afectadas por CORS
     ALLOWED_ORIGINS: List[str] = [
         origin.strip() 
         for origin in os.getenv(
             "ALLOWED_ORIGINS", 
-            "http://localhost:3000,http://localhost:5173,http://localhost:8080,https://web-njoy.vercel.app,https://projecte-n-joy.vercel.app"
+            "https://web-njoy.vercel.app,http://localhost:5173,http://localhost:3000"
         ).split(",")
     ]
     

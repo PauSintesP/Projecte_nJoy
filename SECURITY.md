@@ -38,13 +38,43 @@ Todas las entradas son validadas con Pydantic:
 - **Control de acceso**: Los usuarios solo pueden modificar sus propios datos
 - **Validación de permisos**: Verificación de propiedad en tickets y pagos
 
-### 5. CORS Configurado
+### 5. CORS Configurado con Validación Estricta
 
-Control estricto de orígenes permitidos:
+Control **muy estricto** de orígenes permitidos con doble capa de seguridad:
 
-- **Lista blanca de dominios**: Solo dominios específicos pueden acceder
-- **No wildcards en producción**: Nunca usar `*` para `allow_origins`
+**Capa 1: CORSMiddleware de FastAPI**
+- **Lista blanca explícita**: Solo dominios en `ALLOWED_ORIGINS` pueden acceder
+- **Sin regex permisivo**: Eliminado `allow_origin_regex` para evitar subdominios no autorizados
 - **Credenciales permitidas**: Solo para dominios autorizados
+
+**Capa 2: Middleware de Validación Personalizado**
+- **Validación activa**: Verifica el header `Origin` en cada request
+- **Rechazo automático**: Retorna `403 Forbidden` para orígenes no autorizados
+- **Logging de seguridad**: Registra intentos de acceso no autorizados
+- **Compatible con apps móviles**: Permite requests sin header `Origin` (apps nativas)
+
+**Configuración Actual:**
+```python
+# En main.py - Validación estricta
+@app.middleware("http")
+async def validate_origin_middleware(request, call_next):
+    origin = request.headers.get("origin")
+    
+    if origin and origin not in settings.ALLOWED_ORIGINS:
+        # BLOCKED - Log y retornar 403
+        return JSONResponse(status_code=403, content={
+            "detail": "Origin not allowed"
+        })
+    # ...
+```
+
+**Agregar nuevos dominios autorizados:**
+```bash
+# En archivo .env o variables de entorno de Vercel
+ALLOWED_ORIGINS=https://web-njoy.vercel.app,https://otro-dominio.com,http://localhost:5173
+```
+
+**IMPORTANTE**: Apps móviles (Android/iOS) NO están afectadas por CORS porque hacen peticiones HTTP nativas (no desde navegador).
 
 ### 6. Variables de Entorno
 
@@ -192,12 +222,18 @@ ALLOWED_ORIGINS=http://localhost:3000,http://localhost:5173
 
 **Producción**
 ```
-ALLOWED_ORIGINS=https://miapp.com,https://www.miapp.com,https://app.miapp.com
+ALLOWED_ORIGINS=https://web-njoy.vercel.app
+```
+
+**Con múltiples dominios (si es necesario)**
+```
+ALLOWED_ORIGINS=https://web-njoy.vercel.app,https://admin.web-njoy.vercel.app
 ```
 
 **❌ NUNCA en producción**
 ```
 ALLOWED_ORIGINS=*
+allow_origin_regex=https://.*\.vercel\.app  # Permite TODOS los subdominios
 ```
 
 ## 🚀 Mejoras de Seguridad Recomendadas
