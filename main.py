@@ -236,30 +236,29 @@ def register(user: schemas.UsuarioCreate, db: Session = Depends(get_db)):
         new_user = crud.create_item(db, models.Usuario, user)
         print(f"DEBUG: User created successfully with ID: {new_user.id}")
         
-        # EMAIL VERIFICATION TEMPORARILY DISABLED
-        # TODO: Re-enable after installing resend in production
+        # EMAIL VERIFICATION ENABLED
         # Generate verification token and send email
-        # import secrets
-        # from datetime import datetime, timedelta
-        # from email_service import EmailService
+        import secrets
+        from datetime import datetime, timedelta
+        from email_service import EmailService
         
-        # # Generate unique token
-        # verification_token = secrets.token_urlsafe(32)
-        # new_user.verification_token = verification_token
-        # new_user.verification_token_expiry = datetime.now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRY_HOURS)
-        # db.commit()
+        # Generate unique token
+        verification_token = secrets.token_urlsafe(32)
+        new_user.verification_token = verification_token
+        new_user.verification_token_expiry = datetime.now() + timedelta(hours=settings.VERIFICATION_TOKEN_EXPIRY_HOURS)
+        db.commit()
         
-        # # Send verification email
-        # try:
-        #     EmailService.send_verification_email(
-        #         to_email=new_user.email,
-        #         user_name=new_user.nombre,
-        #         verification_token=verification_token
-        #     )
-        #     print(f"✓ Verification email sent to {new_user.email}")
-        # except Exception as email_error:
-        #     print(f"⚠️  Failed to send verification email: {email_error}")
-        #     # Don't fail registration if email fails, user can resend later
+        # Send verification email
+        try:
+            EmailService.send_verification_email(
+                to_email=new_user.email,
+                user_name=new_user.nombre,
+                verification_token=verification_token
+            )
+            print(f"✓ Verification email sent to {new_user.email}")
+        except Exception as email_error:
+            print(f"⚠️  Failed to send verification email: {email_error}")
+            # Don't fail registration if email fails, user can resend later
         
         return new_user
     except HTTPException as e:
@@ -1271,6 +1270,7 @@ def admin_get_statistics(
 @app.post("/evento/", response_model=schemas.Evento, status_code=status.HTTP_201_CREATED, tags=["Events"])
 def create_evento(
     item: schemas.EventoBase,
+    equipos_ids: List[int] = [],  # NUEVO: IDs de equipos autorizados para escanear
     db: Session = Depends(get_db),
     current_user: models.Usuario = Depends(get_current_promotor)
 ):
@@ -1279,8 +1279,31 @@ def create_evento(
         # Set creador_id automatically from current user
         event_data = item.dict()
         event_data['creador_id'] = current_user.id
-        return crud.create_item(db, models.Evento, schemas.EventoBase(**event_data))
+        
+        # Create the event
+        new_event = crud.create_item(db, models.Evento, schemas.EventoBase(**event_data))
+        
+        # Assign teams to event if provided
+        if equipos_ids:
+            for equipo_id in equipos_ids:
+                # Verify team exists and belongs to current user
+                team = db.query(models.Team).filter(
+                    models.Team.id == equipo_id,
+                    models.Team.leader_id == current_user.id
+                ).first()
+                
+                if team:
+                    # Insert into evento_equipos table
+                    db.execute(
+                        "INSERT OR IGNORE INTO evento_equipos (evento_id, equipo_id) VALUES (:evento_id, :equipo_id)",
+                        {"evento_id": new_event.id, "equipo_id": equipo_id}
+                    )
+            db.commit()
+        
+        return new_event
+        
     except Exception as e:
+        db.rollback()
         print(f"ERROR creating event: {str(e)}")
         # Check for IntegrityError (FK violation)
         if "Foreign key violation" in str(e) or "IntegrityError" in str(e) or "foreign key constraint" in str(e):
@@ -1325,6 +1348,80 @@ def read_evento(
         count = db.query(models.Ticket).filter(models.Ticket.evento_id == evento.id).count()
         setattr(evento, "tickets_vendidos", count)
     return evento
+
+@app.get("/evento/{evento_id}/equipos", tags=["Events"])
+def get_evento_equipos(
+    evento_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_promotor)
+):
+    """Obtener equipos asignados a un evento"""
+    # Verify event exists and user has permission
+    evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    if current_user.role != 'admin' and evento.creador_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para ver los equipos de este evento")
+    
+    # Get teams assigned to this event
+    result = db.execute(
+        "SELECT equipo_id FROM evento_equipos WHERE evento_id = :evento_id",
+        {"evento_id": evento_id}
+    )
+    team_ids = [row[0] for row in result.fetchall()]
+    
+    # Get full team details
+    teams = db.query(models.Team).filter(models.Team.id.in_(team_ids)).all() if team_ids else []
+    
+    return {
+        "evento_id": evento_id,
+        "equipos": [{"id": t.id, "nombre_equipo": t.nombre_equipo} for t in teams]
+    }
+
+@app.put("/evento/{evento_id}/equipos", tags=["Events"])
+def update_evento_equipos(
+    evento_id: int,
+    equipos_ids: List[int],
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_promotor)
+):
+    """Actualizar equipos asignados a un evento"""
+    # Verify event exists and user has permission
+    evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
+    if not evento:
+        raise HTTPException(status_code=404, detail="Evento no encontrado")
+    
+    if current_user.role != 'admin' and evento.creador_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso para modificar los equipos de este evento")
+    
+    try:
+        # Delete existing assignments
+        db.execute(
+            "DELETE FROM evento_equipos WHERE evento_id = :evento_id",
+            {"evento_id": evento_id}
+        )
+        
+        # Add new assignments
+        for equipo_id in equipos_ids:
+            # Verify team exists and belongs to current user
+            team = db.query(models.Team).filter(
+                models.Team.id == equipo_id,
+                models.Team.leader_id == current_user.id
+            ).first()
+            
+            if team:
+                db.execute(
+                    "INSERT OR IGNORE INTO evento_equipos (evento_id, equipo_id) VALUES (:evento_id, :equipo_id)",
+                    {"evento_id": evento_id, "equipo_id": equipo_id}
+                )
+        
+        db.commit()
+        
+        return {"message": "Equipos actualizados correctamente", "evento_id": evento_id, "equipos_ids": equipos_ids}
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(status_code=500, detail=f"Error al actualizar equipos: {str(e)}")
 
 @app.get("/eventos/mis-eventos", response_model=List[schemas.Evento], tags=["Events"])
 def get_my_eventos(
@@ -1758,7 +1855,7 @@ def validate_ticket(
         event = db.query(models.Evento).filter(models.Evento.id == ticket.evento_id).first()
         event_name = event.nombre if event else "Evento desconocido"
         
-        # PERMISSION CHECK STRICT (TEAMS)
+        # PERMISSION CHECK STRICT (TEAMS BASED ON EVENTO_EQUIPOS)
         # ---------------------------------------------------------------------
         is_authorized = False
         if current_scanner.role == 'admin':
@@ -1766,18 +1863,25 @@ def validate_ticket(
         elif event and event.creador_id == current_scanner.id:
             is_authorized = True
         elif event:
-             membership = db.query(models.TeamMember).join(models.Team).filter(
-                models.TeamMember.user_id == current_scanner.id,
-                models.TeamMember.status == 'accepted',
-                models.Team.leader_id == event.creador_id
-            ).first()
-             if membership:
-                 is_authorized = True
+            # Check if user belongs to a team assigned to this event
+            result = db.execute(
+                """
+                SELECT 1 FROM evento_equipos ee
+                JOIN miembros_equipo me ON ee.equipo_id = me.equipo_id
+                WHERE ee.evento_id = :evento_id 
+                AND me.usuario_id = :usuario_id
+                AND me.estado = 'accepted'
+                LIMIT 1
+                """,
+                {"evento_id": event.id, "usuario_id": current_scanner.id}
+            )
+            if result.fetchone():
+                is_authorized = True
         
         if not is_authorized:
              return schemas.TicketScanResponse(
                 success=False,
-                message="⛔ No tienes permiso para escanear este evento (No estás en el equipo)",
+                message="⛔ No tienes permiso para escanear este evento (No estás en un equipo asignado)",
                 event_name=event_name
             )
         # ---------------------------------------------------------------------
