@@ -1261,6 +1261,136 @@ def admin_get_statistics(
 ):
     """Obtener estadísticas de usuarios (solo admin)"""
     return admin_crud.get_user_statistics(db)
+# ============================================
+# GEOCODING UTILITY
+# ============================================
+
+import httpx
+
+def geocode_city(city_name: str) -> tuple:
+    """
+    Get latitude and longitude for a city using OpenStreetMap Nominatim API.
+    Returns (lat, lon) or (None, None) if not found.
+    """
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {
+            "q": city_name,
+            "format": "json",
+            "limit": 1
+        }
+        headers = {
+            "User-Agent": "nJoy-App/1.0 (contact@njoy.com)"
+        }
+        
+        response = httpx.get(url, params=params, headers=headers, timeout=10.0)
+        data = response.json()
+        
+        if data and len(data) > 0:
+            lat = float(data[0]["lat"])
+            lon = float(data[0]["lon"])
+            return (lat, lon)
+    except Exception as e:
+        print(f"Geocoding error for {city_name}: {e}")
+    
+    return (None, None)
+
+# ============================================
+# ENDPOINTS DE LOCALIDAD
+# ============================================
+
+@app.get("/localidad/", response_model=List[schemas.Localidad], tags=["Locations"])
+def get_localidades(db: Session = Depends(get_db)):
+    """Obtener todas las localidades (público)"""
+    return db.query(models.Localidad).all()
+
+@app.post("/localidad/", response_model=schemas.Localidad, status_code=status.HTTP_201_CREATED, tags=["Locations"])
+def create_localidad(
+    localidad: schemas.LocalidadCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_promotor)
+):
+    """
+    Crear una nueva localidad con geocoding automático.
+    Las coordenadas se obtienen automáticamente del nombre de la ciudad.
+    """
+    # Check if ciudad already exists
+    existing = db.query(models.Localidad).filter(models.Localidad.ciudad == localidad.ciudad).first()
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"La localidad '{localidad.ciudad}' ya existe"
+        )
+    
+    # Auto-geocode if coordinates not provided
+    lat = localidad.latitud
+    lon = localidad.longitud
+    if lat is None or lon is None:
+        lat, lon = geocode_city(localidad.ciudad)
+    
+    # Create localidad
+    new_localidad = models.Localidad(
+        ciudad=localidad.ciudad,
+        latitud=lat,
+        longitud=lon
+    )
+    db.add(new_localidad)
+    db.commit()
+    db.refresh(new_localidad)
+    return new_localidad
+
+@app.put("/localidad/{localidad_id}", response_model=schemas.Localidad, tags=["Locations"])
+def update_localidad(
+    localidad_id: int,
+    localidad: schemas.LocalidadCreate,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_promotor)
+):
+    """
+    Actualizar una localidad. Re-geocodifica si el nombre cambia.
+    """
+    db_localidad = db.query(models.Localidad).filter(models.Localidad.id == localidad_id).first()
+    if not db_localidad:
+        raise HTTPException(status_code=404, detail="Localidad no encontrada")
+    
+    # If city name changed, re-geocode
+    if db_localidad.ciudad != localidad.ciudad:
+        lat, lon = geocode_city(localidad.ciudad)
+        db_localidad.latitud = lat
+        db_localidad.longitud = lon
+    elif localidad.latitud is not None:
+        db_localidad.latitud = localidad.latitud
+    elif localidad.longitud is not None:
+        db_localidad.longitud = localidad.longitud
+        
+    db_localidad.ciudad = localidad.ciudad
+    db.commit()
+    db.refresh(db_localidad)
+    return db_localidad
+
+@app.post("/localidad/geocode-all", tags=["Locations"])
+def geocode_all_localidades(
+    db: Session = Depends(get_db),
+    current_admin: models.Usuario = Depends(get_current_admin)
+):
+    """
+    Geocodificar todas las localidades que no tienen coordenadas (solo admin).
+    Útil para actualizar localidades existentes.
+    """
+    localidades = db.query(models.Localidad).filter(
+        (models.Localidad.latitud == None) | (models.Localidad.longitud == None)
+    ).all()
+    
+    updated = 0
+    for loc in localidades:
+        lat, lon = geocode_city(loc.ciudad)
+        if lat and lon:
+            loc.latitud = lat
+            loc.longitud = lon
+            updated += 1
+    
+    db.commit()
+    return {"message": f"Geocodificadas {updated} localidades de {len(localidades)} sin coordenadas"}
 
 
 # ============================================
