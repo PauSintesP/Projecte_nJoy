@@ -117,6 +117,8 @@ class UsuarioWithPassword(Usuario):
 
 class LocalidadBase(BaseModel):
     ciudad: str = Field(..., min_length=1, max_length=100)
+    latitud: Optional[float] = None
+    longitud: Optional[float] = None
 
 class LocalidadCreate(LocalidadBase):
     pass
@@ -124,6 +126,7 @@ class LocalidadCreate(LocalidadBase):
 class Localidad(LocalidadBase):
     id: int
     model_config = ConfigDict(from_attributes=True)
+
 
 # ============================================
 # Schemas de Organizador
@@ -195,6 +198,7 @@ class EventoBase(BaseModel):
 class Evento(EventoBase):
     id: int
     tickets_vendidos: Optional[int] = 0 # New field for availability (Computed)
+    distancia_km: Optional[float] = None  # Distance from user in km (Computed)
     
     model_config = ConfigDict(
         from_attributes=True,

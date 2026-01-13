@@ -1283,12 +1283,28 @@ def search_events(
     precio_min: Optional[float] = None, # Precio mínimo
     precio_max: Optional[float] = None, # Precio máximo
     localidad_id: Optional[int] = None, # Filtro por localidad
+    user_lat: Optional[float] = None,   # Latitud del usuario
+    user_lon: Optional[float] = None,   # Longitud del usuario
+    order_by_distance: bool = False,    # Ordenar por distancia
     db: Session = Depends(get_db)
 ):
     """
     Búsqueda avanzada de eventos con múltiples filtros
-    Endpoint público
+    Endpoint público - soporta ordenación por distancia
     """
+    import math
+    
+    def haversine(lat1, lon1, lat2, lon2):
+        """Calcula la distancia en km entre dos puntos geográficos"""
+        if None in (lat1, lon1, lat2, lon2):
+            return float('inf')
+        R = 6371  # Radio de la Tierra en km
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+        c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+        return R * c
+    
     query = db.query(models.Evento)
     
     if q:
@@ -1304,12 +1320,26 @@ def search_events(
     
     eventos = query.all()
     
-    # Calculate tickets sold for each event
+    # Calculate tickets sold and distance for each event
+    eventos_with_data = []
     for event in eventos:
         count = db.query(models.Ticket).filter(models.Ticket.evento_id == event.id).count()
         setattr(event, "tickets_vendidos", count)
+        
+        # Calculate distance if user location provided
+        distance = None
+        if user_lat is not None and user_lon is not None:
+            localidad = db.query(models.Localidad).filter(models.Localidad.id == event.localidad_id).first()
+            if localidad and localidad.latitud and localidad.longitud:
+                distance = haversine(user_lat, user_lon, localidad.latitud, localidad.longitud)
+        setattr(event, "distancia_km", distance)
+        eventos_with_data.append(event)
     
-    return eventos
+    # Sort by distance if requested
+    if order_by_distance and user_lat is not None and user_lon is not None:
+        eventos_with_data.sort(key=lambda e: e.distancia_km if e.distancia_km is not None else float('inf'))
+    
+    return eventos_with_data
 
 @app.post("/evento/", response_model=schemas.Evento, status_code=status.HTTP_201_CREATED, tags=["Events"])
 def create_evento(

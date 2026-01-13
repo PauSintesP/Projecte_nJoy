@@ -10,6 +10,8 @@ class Localidad(Base):
     __tablename__ = 'LOCALIDAD'
     id = Column(Integer, primary_key=True, index=True)
     ciudad = Column(String(100), nullable=False)
+    latitud = Column(Float, nullable=True)
+    longitud = Column(Float, nullable=True)
 
 class Organizador(Base):
     __tablename__ = 'ORGANIZADOR'
