@@ -179,6 +179,18 @@ class EventoBase(BaseModel):
     genero_id: Optional[int] = None
     imagen: Optional[str] = Field(None, max_length=100)
     creador_id: Optional[int] = None  # Will be set automatically by backend
+    
+    @field_validator('precio')
+    @classmethod
+    def validate_precio(cls, v):
+        """Asegurar que precio sea float o None para evitar errores de tipo"""
+        if v is None or v == '':
+            return None
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            raise ValueError('El precio debe ser un número válido')
+
 
 class Evento(EventoBase):
     id: int
