@@ -1267,6 +1267,50 @@ def admin_get_statistics(
 # ENDPOINTS DE EVENTO (PROTEGIDOS)
 # ============================================
 
+@app.get("/evento/tipos", tags=["Events"])
+def get_event_types(db: Session = Depends(get_db)):
+    """
+    Obtener lista de tipos de eventos únicos existentes en la BD
+    Endpoint público para filtros dinámicos
+    """
+    tipos = db.query(models.Evento.tipo).distinct().all()
+    return [t[0] for t in tipos if t[0]]
+
+@app.get("/evento/search", response_model=List[schemas.Evento], tags=["Events"])
+def search_events(
+    q: Optional[str] = None,           # Búsqueda por nombre
+    tipo: Optional[str] = None,         # Filtro por tipo
+    precio_min: Optional[float] = None, # Precio mínimo
+    precio_max: Optional[float] = None, # Precio máximo
+    localidad_id: Optional[int] = None, # Filtro por localidad
+    db: Session = Depends(get_db)
+):
+    """
+    Búsqueda avanzada de eventos con múltiples filtros
+    Endpoint público
+    """
+    query = db.query(models.Evento)
+    
+    if q:
+        query = query.filter(models.Evento.nombre.ilike(f"%{q}%"))
+    if tipo:
+        query = query.filter(models.Evento.tipo == tipo)
+    if precio_min is not None:
+        query = query.filter(models.Evento.precio >= precio_min)
+    if precio_max is not None:
+        query = query.filter(models.Evento.precio <= precio_max)
+    if localidad_id:
+        query = query.filter(models.Evento.localidad_id == localidad_id)
+    
+    eventos = query.all()
+    
+    # Calculate tickets sold for each event
+    for event in eventos:
+        count = db.query(models.Ticket).filter(models.Ticket.evento_id == event.id).count()
+        setattr(event, "tickets_vendidos", count)
+    
+    return eventos
+
 @app.post("/evento/", response_model=schemas.Evento, status_code=status.HTTP_201_CREATED, tags=["Events"])
 def create_evento(
     item: schemas.EventoBase,
