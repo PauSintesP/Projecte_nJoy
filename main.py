@@ -1499,9 +1499,9 @@ def create_evento(
                 ).first()
                 
                 if team:
-                    # Insert into evento_equipos table
+                    # Insert into evento_equipos table (PostgreSQL compatible)
                     db.execute(
-                        "INSERT OR IGNORE INTO evento_equipos (evento_id, equipo_id) VALUES (:evento_id, :equipo_id)",
+                        "INSERT INTO evento_equipos (evento_id, equipo_id) VALUES (:evento_id, :equipo_id) ON CONFLICT DO NOTHING",
                         {"evento_id": new_event.id, "equipo_id": equipo_id}
                     )
             db.commit()
@@ -1618,7 +1618,7 @@ def update_evento_equipos(
             
             if team:
                 db.execute(
-                    "INSERT OR IGNORE INTO evento_equipos (evento_id, equipo_id) VALUES (:evento_id, :equipo_id)",
+                    "INSERT INTO evento_equipos (evento_id, equipo_id) VALUES (:evento_id, :equipo_id) ON CONFLICT DO NOTHING",
                     {"evento_id": evento_id, "equipo_id": equipo_id}
                 )
         
