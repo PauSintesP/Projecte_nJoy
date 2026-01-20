@@ -72,6 +72,8 @@ class UsuarioUpdate(BaseModel):
     pais: Optional[str] = None
     password: Optional[str] = Field(None, min_length=6, alias="contrasena")
     role: Optional[str] = Field(None, pattern='^(user|promotor|scanner|owner|admin)$')
+    foto_perfil: Optional[str] = Field(None, max_length=500)  # URL de foto
+    bio: Optional[str] = Field(None, max_length=500)  # Biografía
     
     model_config = ConfigDict(
         populate_by_name=True
@@ -89,6 +91,8 @@ class Usuario(BaseModel):
     is_active: bool
     is_banned: bool
     created_at: datetime
+    foto_perfil: Optional[str] = None
+    bio: Optional[str] = None
     
     model_config = ConfigDict(
         from_attributes=True,
@@ -182,6 +186,7 @@ class EventoBase(BaseModel):
     genero_id: Optional[int] = None
     imagen: Optional[str] = Field(None, max_length=100)
     creador_id: Optional[int] = None  # Will be set automatically by backend
+    venta_pausada: Optional[bool] = False  # Pausar ventas manualmente
     
     @field_validator('precio')
     @classmethod
@@ -199,6 +204,7 @@ class Evento(EventoBase):
     id: int
     tickets_vendidos: Optional[int] = 0 # New field for availability (Computed)
     distancia_km: Optional[float] = None  # Distance from user in km (Computed)
+    venta_pausada: bool = False  # Sales paused status
     
     model_config = ConfigDict(
         from_attributes=True,

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from typing import List
+from datetime import datetime, timedelta
 import uuid
 import models
 from auth import get_db, get_current_active_user, get_current_scanner
@@ -26,6 +27,29 @@ def purchase_tickets(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Evento no encontrado"
+        )
+    
+    # Verificar si la venta está pausada manualmente
+    if evento.venta_pausada:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La venta de entradas está temporalmente pausada"
+        )
+    
+    # Verificar si el evento ya pasó o está a menos de 10 minutos
+    ahora = datetime.now()
+    cierre_ventas = evento.fechayhora - timedelta(minutes=10)
+    
+    if ahora >= evento.fechayhora:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Este evento ya ha finalizado"
+        )
+    
+    if ahora >= cierre_ventas:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="La venta de entradas ha cerrado (cierra 10 minutos antes del evento)"
         )
     
     # Verificar plazas disponibles
@@ -152,3 +176,43 @@ def get_ticket_detail(
             "precio": evento.precio
         } if evento else None
     }
+
+
+@router.patch("/evento/{evento_id}/toggle-sales", tags=["Events"])
+def toggle_event_sales(
+    evento_id: int,
+    db: Session = Depends(get_db),
+    current_user: models.Usuario = Depends(get_current_active_user)
+):
+    """
+    Pausar o reanudar ventas de un evento
+    
+    Solo el creador del evento o un admin puede cambiar este estado.
+    """
+    # Verificar que el evento existe
+    evento = db.query(models.Evento).filter(models.Evento.id == evento_id).first()
+    if not evento:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Evento no encontrado"
+        )
+    
+    # Verificar permisos: solo creador o admin
+    if evento.creador_id != current_user.id and current_user.role != 'admin':
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No tienes permiso para modificar este evento"
+        )
+    
+    # Toggle del estado de venta
+    evento.venta_pausada = not evento.venta_pausada
+    db.commit()
+    db.refresh(evento)
+    
+    estado = "pausada" if evento.venta_pausada else "activa"
+    return {
+        "message": f"Venta de '{evento.nombre}' ahora está {estado}",
+        "venta_pausada": evento.venta_pausada,
+        "evento_id": evento.id
+    }
+

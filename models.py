@@ -50,6 +50,10 @@ class Usuario(Base):
     email_verified = Column(Boolean, default=False, nullable=False)
     verification_token = Column(String(255), nullable=True)
     verification_token_expiry = Column(DateTime, nullable=True)
+    
+    # Profile enhancement fields
+    foto_perfil = Column(String(500), nullable=True)  # URL de la foto de perfil
+    bio = Column(String(500), nullable=True)  # Biografía del usuario
 
 class Evento(Base):
     __tablename__ = 'EVENTO'
@@ -66,6 +70,7 @@ class Evento(Base):
     genero_id = Column(Integer, ForeignKey('GENERO.id'))
     imagen = Column(String(100))
     creador_id = Column(Integer, ForeignKey('USUARIO.id'))  # Track who created the event
+    venta_pausada = Column(Boolean, default=False, nullable=False)  # Pausar ventas manualmente
 
 class Ticket(Base):
     __tablename__ = 'TICKET'
