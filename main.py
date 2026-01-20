@@ -1794,10 +1794,20 @@ def create_or_get_localidad(
     ).first()
     
     if existing:
+        # Update coordinates if provided and missing
+        if (latitud is not None and longitud is not None) and (existing.latitud is None or existing.longitud is None):
+            existing.latitud = latitud
+            existing.longitud = longitud
+            db.commit()
+            db.refresh(existing)
         return existing
     
-    # Si no existe, crear una nueva
-    new_localidad = models.Localidad(ciudad=ciudad.strip())
+    # Si no existe, crear una nueva con coordenadas
+    new_localidad = models.Localidad(
+        ciudad=ciudad.strip(),
+        latitud=latitud,
+        longitud=longitud
+    )
     db.add(new_localidad)
     db.commit()
     db.refresh(new_localidad)
