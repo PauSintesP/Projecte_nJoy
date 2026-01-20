@@ -594,6 +594,7 @@ def get_my_tickets(
                 "codigo_ticket": ticket.codigo_ticket,
                 "nombre_asistente": ticket.nombre_asistente,
                 "activado": ticket.activado,
+                "propietario": f"{current_user.nombre} {current_user.apellidos}",
                 "evento": {
                     "id": evento.id,
                     "nombre": evento.nombre,
@@ -602,7 +603,8 @@ def get_my_tickets(
                     "recinto": evento.recinto,
                     "imagen": evento.imagen,
                     "precio": evento.precio,
-                    "tipo": evento.tipo
+                    "tipo": evento.tipo,
+                    "genero": evento.genero if hasattr(evento, 'genero') else None
                 }
             })
     return tickets_with_events
