@@ -1796,7 +1796,7 @@ def create_localidad(
     """Crear una nueva localidad (requiere autenticación)"""
     return crud.create_item(db, models.Localidad, item)
 
-@app.post("/localidad/auto", response_model=schemas.Localidad, status_code=status.HTTP_201_CREATED, tags=["Locations"])
+@app.post("/localidad/auto", response_model=schemas.Localidad, tags=["Locations"])
 def create_or_get_localidad(
     ciudad: str,
     latitud: Optional[float] = None,
@@ -1808,30 +1808,38 @@ def create_or_get_localidad(
     Crear una localidad automáticamente si no existe, o devolver la existente.
     Puede incluir coordenadas de latitud y longitud.
     """
-    # Buscar si ya existe una localidad con ese nombre (case-insensitive)
-    existing = db.query(models.Localidad).filter(
-        models.Localidad.ciudad.ilike(ciudad.strip())
-    ).first()
-    
-    if existing:
-        # Update coordinates if provided and missing
-        if (latitud is not None and longitud is not None) and (existing.latitud is None or existing.longitud is None):
-            existing.latitud = latitud
-            existing.longitud = longitud
-            db.commit()
-            db.refresh(existing)
-        return existing
-    
-    # Si no existe, crear una nueva con coordenadas
-    new_localidad = models.Localidad(
-        ciudad=ciudad.strip(),
-        latitud=latitud,
-        longitud=longitud
-    )
-    db.add(new_localidad)
-    db.commit()
-    db.refresh(new_localidad)
-    return new_localidad
+    try:
+        # Buscar si ya existe una localidad con ese nombre (case-insensitive)
+        existing = db.query(models.Localidad).filter(
+            models.Localidad.ciudad.ilike(ciudad.strip())
+        ).first()
+        
+        if existing:
+            # Update coordinates if provided and missing
+            if (latitud is not None and longitud is not None) and (existing.latitud is None or existing.longitud is None):
+                existing.latitud = latitud
+                existing.longitud = longitud
+                db.commit()
+                db.refresh(existing)
+            return existing
+        
+        # Si no existe, crear una nueva con coordenadas
+        new_localidad = models.Localidad(
+            ciudad=ciudad.strip(),
+            latitud=latitud,
+            longitud=longitud
+        )
+        db.add(new_localidad)
+        db.commit()
+        db.refresh(new_localidad)
+        return new_localidad
+    except Exception as e:
+        db.rollback()
+        print(f"Error in /localidad/auto: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error creating/getting location: {str(e)}"
+        )
 
 @app.get("/localidad/", response_model=List[schemas.Localidad], tags=["Locations"])
 def read_localidades(
