@@ -1415,6 +1415,8 @@ def search_events(
     precio_min: Optional[float] = None, # Precio mínimo
     precio_max: Optional[float] = None, # Precio máximo
     localidad_id: Optional[int] = None, # Filtro por localidad
+    fecha_desde: Optional[str] = None,  # Fecha desde (YYYY-MM-DD)
+    fecha_hasta: Optional[str] = None,  # Fecha hasta (YYYY-MM-DD)
     user_lat: Optional[float] = None,   # Latitud del usuario
     user_lon: Optional[float] = None,   # Longitud del usuario
     order_by_distance: bool = False,    # Ordenar por distancia
@@ -1422,9 +1424,10 @@ def search_events(
 ):
     """
     Búsqueda avanzada de eventos con múltiples filtros
-    Endpoint público - soporta ordenación por distancia
+    Endpoint público - soporta ordenación por distancia y filtro por fecha
     """
     import math
+    from datetime import datetime
     
     def haversine(lat1, lon1, lat2, lon2):
         """Calcula la distancia en km entre dos puntos geográficos"""
@@ -1449,6 +1452,23 @@ def search_events(
         query = query.filter(models.Evento.precio <= precio_max)
     if localidad_id:
         query = query.filter(models.Evento.localidad_id == localidad_id)
+    
+    # Date filters
+    if fecha_desde:
+        try:
+            desde = datetime.strptime(fecha_desde, "%Y-%m-%d")
+            query = query.filter(models.Evento.fechayhora >= desde)
+        except ValueError:
+            pass  # Ignore invalid date format
+    
+    if fecha_hasta:
+        try:
+            hasta = datetime.strptime(fecha_hasta, "%Y-%m-%d")
+            # Include the entire day
+            hasta = hasta.replace(hour=23, minute=59, second=59)
+            query = query.filter(models.Evento.fechayhora <= hasta)
+        except ValueError:
+            pass  # Ignore invalid date format
     
     eventos = query.all()
     
