@@ -149,6 +149,47 @@ models.Base.metadata.create_all(bind=engine)
 
 # ============================================
 
+@app.get("/debug-db", tags=["Debug"])
+def debug_database(db: Session = Depends(get_db)):
+    """
+    Endpoint de debug para verificar la conexión de la base de datos.
+    Muestra qué DATABASE_URL está usando y cuántos registros hay.
+    """
+    try:
+        from sqlalchemy import text
+        from config import settings
+        import os
+        
+        # Mask the password in the URL for security
+        db_url = settings.DATABASE_URL or "NOT SET"
+        if "@" in db_url:
+            parts = db_url.split("@")
+            masked = parts[0].rsplit(":", 1)[0] + ":****@" + parts[1]
+        else:
+            masked = db_url
+        
+        # Count records
+        eventos = db.execute(text('SELECT COUNT(*) FROM "EVENTO"')).scalar()
+        localidades = db.execute(text('SELECT COUNT(*) FROM "LOCALIDAD"')).scalar()
+        usuarios = db.execute(text('SELECT COUNT(*) FROM "USUARIO"')).scalar()
+        
+        return {
+            "status": "connected",
+            "database_url_masked": masked,
+            "env_database_url": "SET" if os.getenv("DATABASE_URL") else "NOT SET",
+            "env_postgres_url": "SET" if os.getenv("POSTGRES_URL") else "NOT SET",
+            "counts": {
+                "eventos": eventos,
+                "localidades": localidades,
+                "usuarios": usuarios
+            }
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error": str(e)
+        }
+
 @app.get("/fix-db-schema", tags=["Debug"])
 def fix_db_schema(db: Session = Depends(get_db)):
     """
