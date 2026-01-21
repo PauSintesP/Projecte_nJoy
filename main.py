@@ -148,6 +148,40 @@ app.include_router(admin_endpoints.router)
 models.Base.metadata.create_all(bind=engine)
 
 # ============================================
+
+@app.get("/fix-db-schema", tags=["Debug"])
+def fix_db_schema(db: Session = Depends(get_db)):
+    """
+    Endpoint temporal para arreglar el esquema de la base de datos en producción.
+    Añade las columnas faltantes a la tabla USUARIO.
+    """
+    try:
+        from sqlalchemy import text
+        # Intentar añadir columnas si no existen
+        commands = [
+            "ALTER TABLE \"USUARIO\" ADD COLUMN IF NOT EXISTS foto_perfil VARCHAR(500);",
+            "ALTER TABLE \"USUARIO\" ADD COLUMN IF NOT EXISTS bio VARCHAR(500);",
+            "ALTER TABLE \"USUARIO\" ADD COLUMN IF NOT EXISTS email_verified BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE \"USUARIO\" ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255);",
+            "ALTER TABLE \"USUARIO\" ADD COLUMN IF NOT EXISTS verification_token_expiry TIMESTAMP;"
+        ]
+        
+        results = []
+        for cmd in commands:
+            try:
+                db.execute(text(cmd))
+                results.append(f"Success: {cmd}")
+            except Exception as e:
+                # Log error but try others
+                msg = f"Error executing {cmd}: {str(e)}"
+                print(msg)
+                results.append(msg)
+                
+        db.commit()
+        return {"status": "completed", "results": results}
+    except Exception as e:
+        db.rollback()
+        return {"status": "error", "detail": str(e)}
 # CORS CONFIGURATION - SECURITY LAYER 2
 # ============================================
 # Custom middleware for strict origin validation
