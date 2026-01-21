@@ -289,32 +289,44 @@ def login(credentials: schemas.LoginInput, db: Session = Depends(get_db)):
     - Los tokens son JWT firmados
     - Email case-insensitive
     """
-    # Convert email to lowercase for case-insensitive comparison
-    email_lower = credentials.email.lower().strip()
-    user = authenticate_user(db, email_lower, credentials.contrasena)
-    
-    if not user:
+    try:
+        # Convert email to lowercase for case-insensitive comparison
+        email_lower = credentials.email.lower().strip()
+        user = authenticate_user(db, email_lower, credentials.contrasena)
+        
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Email o contraseña incorrectos",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        if not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Usuario inactivo"
+            )
+        
+        # Crear tokens
+        access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
+        refresh_token = create_refresh_token(data={"sub": str(user.id)})
+        
+        return {
+            "access_token": access_token,
+            "refresh_token": refresh_token,
+            "token_type": "bearer"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        error_trace = traceback.format_exc()
+        print(f"LOGIN ERROR: {type(e).__name__}: {str(e)}")
+        print(f"TRACEBACK: {error_trace}")
         raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Email o contraseña incorrectos",
-            headers={"WWW-Authenticate": "Bearer"},
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error en login: {str(e)}"
         )
-    
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Usuario inactivo"
-        )
-    
-    # Crear tokens
-    access_token = create_access_token(data={"sub": str(user.id), "email": user.email})
-    refresh_token = create_refresh_token(data={"sub": str(user.id)})
-    
-    return {
-        "access_token": access_token,
-        "refresh_token": refresh_token,
-        "token_type": "bearer"
-    }
 
 @app.post("/token/refresh", response_model=schemas.Token, tags=["Authentication"])
 def refresh_token(token_request: schemas.RefreshTokenRequest, db: Session = Depends(get_db)):
